@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0b0c0e">
+  <meta name="description" content="RSVP speed reader with Optimal Recognition Point alignment and read-aloud.">
+  <title>Speed Reader</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body data-accent="teal" data-font="sans">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" fill="currentColor"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="13.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M11 7 6 12l5 5M18 7l-5 5 5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-fwd" viewBox="0 0 24 24"><path d="m13 7 5 5-5 5M6 7l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-lib" viewBox="0 0 24 24"><path d="M5 4h4v16H5zM10 4h4v16h-4zM15.5 4.5l3.8-1 3.2 15.5-3.8 1z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="i-voice" viewBox="0 0 24 24"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" fill="currentColor"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  </svg>
+
+  <header class="topbar">
+    <button class="icon-btn" id="btn-library" aria-label="Library" title="Library"><svg><use href="#i-lib"/></svg></button>
+    <div class="doc-title" id="doc-title">Speed Reader</div>
+    <button class="icon-btn" id="btn-import" aria-label="Import text" title="Import"><svg><use href="#i-plus"/></svg></button>
+    <button class="icon-btn" id="btn-settings" aria-label="Settings" title="Settings"><svg><use href="#i-gear"/></svg></button>
+  </header>
+
+  <main class="stage">
+    <div class="reader" id="reader" role="button" tabindex="0" aria-label="Reading area. Tap to play or pause.">
+      <div class="guide guide-top" aria-hidden="true"></div>
+      <div class="word" id="word" aria-live="off"><span class="w-before" id="w-before"></span><span class="w-pivot" id="w-pivot"></span><span class="w-after" id="w-after"></span></div>
+      <div class="guide guide-bottom" aria-hidden="true"></div>
+    </div>
+    <p class="context" id="context"></p>
+    <p class="status" id="status"></p>
+  </main>
+
+  <footer class="controls">
+    <div class="timeline">
+      <input type="range" id="scrub" min="0" max="0" value="0" step="1" aria-label="Position in text">
+      <div class="timeline-meta"><span id="pos-label">&nbsp;</span><span id="time-label"></span></div>
+    </div>
+    <div class="transport">
+      <button class="icon-btn big" id="btn-back" aria-label="Back 10 words" title="Back 10 words (←)"><svg><use href="#i-back"/></svg><span class="sub">10</span></button>
+      <button class="play-btn" id="btn-play" aria-label="Play" title="Play / pause (space)"><svg><use href="#i-play"/></svg></button>
+      <button class="icon-btn big" id="btn-fwd" aria-label="Forward 10 words" title="Forward 10 words (→)"><svg><use href="#i-fwd"/></svg><span class="sub">10</span></button>
+    </div>
+    <div class="speed">
+      <button class="step-btn" id="wpm-down" aria-label="Slower">−</button>
+      <input type="range" id="wpm" min="100" max="1000" step="25" value="300" aria-label="Words per minute">
+      <button class="step-btn" id="wpm-up" aria-label="Faster">+</button>
+      <output id="wpm-label" for="wpm">300 wpm</output>
+      <button class="toggle-btn" id="btn-voice" aria-pressed="false" title="Read aloud with the device voice"><svg><use href="#i-voice"/></svg><span>Read aloud</span></button>
+    </div>
+  </footer>
+
+  <dialog id="dlg-import" aria-labelledby="import-h">
+    <form method="dialog" class="dlg-head"><h2 id="import-h">Import</h2><button class="icon-btn" aria-label="Close"><svg><use href="#i-close"/></svg></button></form>
+    <section>
+      <h3>Paste text</h3>
+      <textarea id="paste-text" rows="6" placeholder="Paste or type text here"></textarea>
+      <div class="row">
+        <button class="btn primary" id="btn-read-paste">Read</button>
+        <button class="btn" id="btn-clipboard">Paste from clipboard</button>
+        <button class="btn ghost" id="btn-sample">Try a sample</button>
+      </div>
+    </section>
+    <section>
+      <h3>Open a file</h3>
+      <p class="hint">Plain text, Markdown, HTML, ePub (without DRM), or PDF (with a text layer). You can also drop a file anywhere on this page.</p>
+      <label class="btn file-btn">Choose file<input type="file" id="file-input" accept=".txt,.text,.md,.markdown,.html,.htm,.xhtml,.epub,.pdf,text/plain,text/html,application/epub+zip,application/pdf"></label>
+    </section>
+    <section>
+      <h3>From a webpage</h3>
+      <p class="hint">Use the <strong>Speed Read</strong> bookmarklet on any article, including pages you're logged into. It extracts the article like Safari Reader and sends it here.</p>
+      <div class="row">
+        <a class="btn bookmarklet" id="bm-link" href="#">Speed Read</a>
+        <button class="btn" id="btn-copy-bm">Copy bookmarklet code</button>
+      </div>
+      <details>
+        <summary>How to install</summary>
+        <p><strong>Mac (Safari):</strong> show the Favorites bar (View › Show Favorites Bar), then drag the <em>Speed Read</em> button above onto it. With iCloud Safari sync on, it also appears on your iPhone and iPad.</p>
+        <p><strong>iPhone / iPad:</strong> tap <em>Copy bookmarklet code</em>. Bookmark any page (Share › Add Bookmark, name it “Speed Read”). Then open Bookmarks, tap Edit, select the new bookmark, and replace its address with the copied code.</p>
+        <p><strong>Using it:</strong> open an article in Safari, open Bookmarks, and tap <em>Speed Read</em>. The reader opens in a new tab with the article loaded.</p>
+      </details>
+    </section>
+  </dialog>
+
+  <dialog id="dlg-library" aria-labelledby="lib-h">
+    <form method="dialog" class="dlg-head"><h2 id="lib-h">Library</h2><button class="icon-btn" aria-label="Close"><svg><use href="#i-close"/></svg></button></form>
+    <p class="hint">Stored on this device only.</p>
+    <ul class="library" id="library-list"></ul>
+  </dialog>
+
+  <dialog id="dlg-settings" aria-labelledby="set-h">
+    <form method="dialog" class="dlg-head"><h2 id="set-h">Settings</h2><button class="icon-btn" aria-label="Close"><svg><use href="#i-close"/></svg></button></form>
+    <section>
+      <h3>Accent</h3>
+      <div class="seg" role="radiogroup">
+        <label><input type="radio" name="accent" value="teal"><span>Teal</span></label>
+        <label><input type="radio" name="accent" value="orange"><span>Orange</span></label>
+      </div>
+    </section>
+    <section>
+      <h3>Font</h3>
+      <div class="seg" role="radiogroup">
+        <label><input type="radio" name="font" value="sans"><span>Sans</span></label>
+        <label><input type="radio" name="font" value="serif"><span>Serif</span></label>
+        <label><input type="radio" name="font" value="mono"><span>Mono</span></label>
+      </div>
+    </section>
+    <section>
+      <h3>Word size</h3>
+      <input type="range" id="size" min="0.7" max="1.6" step="0.05" aria-label="Word size">
+    </section>
+    <section>
+      <h3>Voice</h3>
+      <select id="voice-select" aria-label="Voice"></select>
+      <div class="row"><button class="btn" id="btn-test-voice">Test voice</button></div>
+      <p class="hint" id="voice-hint">In read-aloud mode the voice sets the pace: the WPM control changes its speaking rate. For better voices, download Enhanced or Premium voices in System Settings › Accessibility › Spoken Content (Mac) or Settings › Accessibility › Spoken Content (iPhone/iPad).</p>
+    </section>
+    <section>
+      <h3>Keyboard</h3>
+      <p class="hint">Space: play/pause · ←/→: back/forward 10 words · ↑/↓: speed</p>
+    </section>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="drop-overlay" id="drop-overlay">Drop file to read</div>
+</body>
+</html>

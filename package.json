@@ -1,0 +1,16 @@
+{
+  "name": "speed-reader",
+  "private": true,
+  "type": "module",
+  "description": "RSVP speed reader web app. No build step: serve the folder as static files.",
+  "scripts": {
+    "test": "node --test tests/unit.test.mjs",
+    "serve": "python3 -m http.server 8000",
+    "test:e2e": "node tests/e2e.mjs"
+  },
+  "devDependencies": {
+    "jszip": "3.10.2",
+    "pdf-lib": "^1.17.1",
+    "playwright-core": "^1.56.0"
+  }
+}
