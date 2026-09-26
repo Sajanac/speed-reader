@@ -1,7 +1,7 @@
 import { splitWord } from './orp.js';
 import { buildDoc, durationMs, sentenceStart, sentenceEnd } from './text.js';
 import { Player, MIN_WPM, MAX_WPM } from './engine.js';
-import { speechSupported, listVoices, pickVoice, voiceLabel } from './speech.js';
+import { speechSupported, listVoices, pickVoice, voiceLabel, claimPlaybackAudio, unlockAudio } from './speech.js';
 import { importFile, articleFromHtml } from './importers.js';
 import { bookmarkletHref, appUrl } from './bookmarklet.js';
 import * as store from './store.js';
@@ -42,6 +42,7 @@ let wakeLock = null;
 const player = new Player({
   onWord: (i) => render(i),
   onState: (playing) => {
+    document.body.classList.toggle('reading', playing);
     updatePlayButton(playing);
     updateContext();
     updateStatus();
@@ -463,6 +464,7 @@ $('voice-select').addEventListener('change', (e) => {
 
 $('btn-test-voice').addEventListener('click', () => {
   if (!speechSupported()) return;
+  unlockAudio();
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance('This is how the reader will sound at your current speed.');
   const v = pickVoice(prefs.voiceURI);
@@ -475,6 +477,19 @@ $('btn-test-voice').addEventListener('click', () => {
 });
 
 // ---------------------------------------------------------------- controls
+
+// While reading, everything but the word is hidden; a tap anywhere pauses.
+// Capture phase so the tap doesn't also reach whatever is underneath.
+document.addEventListener(
+  'click',
+  (e) => {
+    if (!document.body.classList.contains('reading')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    player.pause();
+  },
+  true,
+);
 
 el.play.addEventListener('click', () => player.toggle());
 el.reader.addEventListener('click', () => current && player.toggle());
@@ -538,8 +553,16 @@ window.addEventListener('resize', () => {
   if (current) render(player.index);
 });
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') saveProgress(true);
-  else if (player.playing) requestWakeLock();
+  if (document.visibilityState === 'hidden') {
+    saveProgress(true);
+    return;
+  }
+  if (player.playing) requestWakeLock();
+  // iOS can wedge the speech queue while the page is in the background.
+  if (speechSupported()) {
+    if (player.playing && player.speech) player.seek(player.index);
+    else if (!player.playing) speechSynthesis.cancel();
+  }
 });
 window.addEventListener('pagehide', () => saveProgress(true));
 
@@ -606,6 +629,7 @@ function receiveFromBookmarklet() {
 // ---------------------------------------------------------------- start
 
 async function init() {
+  claimPlaybackAudio();
   applyAppearance();
   player.wpm = Math.min(MAX_WPM, Math.max(MIN_WPM, prefs.wpm));
   el.wpm.value = player.wpm;

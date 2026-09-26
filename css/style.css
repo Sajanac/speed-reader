@@ -50,6 +50,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
 button { touch-action: manipulation; cursor: pointer; }
 svg { width: 22px; height: 22px; display: block; }
 
+/* Distraction-free view while reading: hide everything except the word and
+   its guide lines. visibility (not display) keeps the reader from moving. */
+.topbar, .controls, .status { transition: opacity 0.25s, visibility 0.25s; }
+body.reading { cursor: none; }
+body.reading .topbar,
+body.reading .controls,
+body.reading .status,
+body.reading .toast {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
 /* Top bar */
 .topbar {
   display: flex;

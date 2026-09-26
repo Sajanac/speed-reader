@@ -14,6 +14,51 @@ const NOVELTY = new Set([
   'Hysterical', 'Jester', 'Organ', 'Pipe Organ', 'Superstar', 'Trinoids', 'Whisper', 'Wobble', 'Zarvox',
 ]);
 
+// iOS Safari starts pages in the "ambient" audio category, which the
+// ring/silent switch mutes, speech included. Ask for "playback" (like a media
+// app) once at startup; changing it mid-session can stop audio entirely.
+export function claimPlaybackAudio() {
+  try {
+    if (navigator.audioSession) navigator.audioSession.type = 'playback';
+  } catch {
+    // Not supported; unlockAudio() covers older iOS.
+  }
+}
+
+let unlocked = false;
+
+// Fallback for Safari without navigator.audioSession (before iOS 16.4):
+// playing a moment of silence from a tap moves the page off "ambient".
+export function unlockAudio() {
+  if (unlocked || typeof Audio === 'undefined' || typeof navigator === 'undefined' || navigator.audioSession) return;
+  unlocked = true;
+  try {
+    const n = 800;
+    const buf = new ArrayBuffer(44 + n);
+    const v = new DataView(buf);
+    const str = (o, s) => [...s].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+    str(0, 'RIFF');
+    v.setUint32(4, 36 + n, true);
+    str(8, 'WAVE');
+    str(12, 'fmt ');
+    v.setUint32(16, 16, true);
+    v.setUint16(20, 1, true); // PCM
+    v.setUint16(22, 1, true); // mono
+    v.setUint32(24, 8000, true);
+    v.setUint32(28, 8000, true);
+    v.setUint16(32, 1, true);
+    v.setUint16(34, 8, true);
+    str(36, 'data');
+    v.setUint32(40, n, true);
+    for (let i = 0; i < n; i++) v.setUint8(44 + i, 128); // 8-bit silence
+    const a = new Audio(URL.createObjectURL(new Blob([buf], { type: 'audio/wav' })));
+    a.setAttribute('playsinline', '');
+    a.play().catch(() => {});
+  } catch {
+    // Best effort only.
+  }
+}
+
 export const speechSupported = () =>
   typeof window !== 'undefined' && 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 
@@ -61,6 +106,9 @@ export class Speaker {
   // first time on iOS.
   start(words, index, { rate, voice }) {
     this.stop();
+    unlockAudio();
+    // iOS can leave the synthesiser paused after an interruption.
+    if (speechSynthesis.paused) speechSynthesis.resume();
     this._words = words;
     this._rate = rate;
     this._voice = voice;

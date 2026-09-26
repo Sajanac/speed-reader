@@ -45,6 +45,8 @@ const speechMock = () => {
     { name: 'Bells', lang: 'en-US', voiceURI: 'com.apple.bells', default: false, localService: true },
   ];
   window.__spoken = [];
+  // Safari 16.4+ Audio Session API (not in Chromium).
+  Object.defineProperty(navigator, 'audioSession', { value: { type: 'auto' }, configurable: true });
   let queue = [];
   let current = null;
   let timers = [];
@@ -165,6 +167,10 @@ await step('empty state shows placeholder', async () => {
   assert.equal(await page.isDisabled('#btn-play'), true);
 });
 
+await step('claims "playback" audio so the iPhone silent switch does not mute speech', async () => {
+  assert.equal(await page.evaluate(() => navigator.audioSession.type), 'playback');
+});
+
 await step('sample loads', async () => {
   await loadSample(page);
   const s = await state(page);
@@ -247,6 +253,39 @@ await step('timing: base interval and punctuation dwell', async () => {
   near(dur('three,'), 150);
   near(dur('five.'), 200);
   near(dur('six'), 100);
+});
+
+await step('reading view hides everything but the word; tap pauses', async () => {
+  await loadSample(page);
+  const vis = () =>
+    page.evaluate(() =>
+      ['.topbar', '.controls', '.status', '#context'].map((s) => getComputedStyle(document.querySelector(s)).visibility),
+    );
+  const box = () => page.evaluate(() => JSON.stringify(document.getElementById('reader').getBoundingClientRect()));
+  const before = await box();
+  await page.click('#btn-play');
+  await page.waitForTimeout(400);
+  assert.deepEqual(await vis(), ['hidden', 'hidden', 'hidden', 'hidden']);
+  const guides = await page.evaluate(() => getComputedStyle(document.querySelector('.guide-top')).visibility);
+  assert.equal(guides, 'visible');
+  assert.equal(await box(), before, 'reader moved when controls hid');
+  const i = (await state(page)).scrub;
+  assert.ok(i > 0, 'did not advance');
+  await page.mouse.click(1200, 700); // where the hidden controls were
+  await page.waitForTimeout(400);
+  assert.equal(await page.evaluate(() => document.body.classList.contains('reading')), false);
+  const [top, controls] = await vis();
+  assert.equal(top, 'visible');
+  assert.equal(controls, 'visible');
+  const j = (await state(page)).scrub;
+  await page.waitForTimeout(300);
+  assert.equal((await state(page)).scrub, j, 'kept playing after tap');
+  if (shots) {
+    await page.click('#btn-play');
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: path.join(shots, 'desktop-reading.png') });
+    await page.mouse.click(640, 120);
+  }
 });
 
 await step('rewind 10 and forward 10', async () => {
@@ -393,7 +432,8 @@ await step('read aloud: voice drives words, WPM sets rate, pause cancels', async
   assert.equal(spoken[0].voice, 'Ava (Premium)'); // best quality voice by default
   // 450 wpm => 7.5 words/s, so ~9 words in 1.2s.
   assert.ok(mid.scrub >= 6 && mid.scrub <= 12, `index ${mid.scrub}`);
-  await page.click('#btn-play');
+  // Controls are hidden while reading; tap anywhere to pause.
+  await page.mouse.click(640, 120);
   const paused = (await state(page)).scrub;
   await page.waitForTimeout(500);
   assert.equal((await state(page)).scrub, paused, 'kept advancing after pause');
