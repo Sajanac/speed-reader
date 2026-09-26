@@ -486,6 +486,22 @@ await step('bookmarklet falls back to copy banner when COOP blocks hand-off', as
   await article.close();
 });
 
+await step('embed.js button on a blog opens the article in the reader', async () => {
+  const blog = await context.newPage();
+  await blog.goto(SITE + 'blog.html');
+  await blog.waitForFunction(() => window.SpeedReader);
+  const popupPromise = context.waitForEvent('page');
+  await blog.click('[data-speed-read]');
+  const popup = await popupPromise;
+  await popup.waitForFunction(() => document.getElementById('doc-title').textContent === 'Why I Walk', null, { timeout: 10000 });
+  const text = await readAll(popup);
+  assert.ok(text.startsWith('Why I Walk Every morning before rounds'), text.slice(0, 80));
+  assert.match(text, /can wait\.$/);
+  assert.doesNotMatch(text, /Speed read this|Subscribe|All rights|Contact/);
+  await popup.close();
+  await blog.close();
+});
+
 await step('phone layout', async () => {
   const phone = await newPage({ width: 390, height: 844 });
   await phone.page.goto(APP);

@@ -35,6 +35,17 @@ To install it, open the reader, tap **+** (Import), and follow the instructions 
 
 On iPhone and iPad, a Home Screen web app has separate storage from Safari. Use the reader in a Safari tab so bookmarklet imports and your library stay in one place.
 
+## Add a "Speed read" button to your own site
+
+Add these two lines to your article template:
+
+```html
+<script src="https://sajanac.github.io/speed-reader/embed.js" defer></script>
+<button type="button" data-speed-read>Speed read this article</button>
+```
+
+Clicking the button opens the reader in a new tab with the article loaded. The script reads the element marked `data-speed-read-content`, or else the page's `<article>`, or else `<main>`. To leave something out (a newsletter box or related links, for example), add `data-speed-read-skip` to it. Buttons, forms, navigation and scripts inside the article are skipped automatically.
+
 ## Run locally
 
 ```sh
