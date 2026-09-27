@@ -14,3 +14,17 @@ test('landing shell keeps imports direct and reader appearance separately scoped
   assert.match(css, /body\.on-home > \.topbar/);
   assert.doesNotMatch(css, /^\.(word|controls)\s*\{/m);
 });
+
+test('home dialogs override the full reader palette, including control backgrounds', async () => {
+  const css = await readFile(new URL('../css/landing.css', import.meta.url), 'utf8');
+  const dialog = css.match(/^body\.on-home dialog \{([^}]+)\}/m)?.[1];
+  assert.ok(dialog, 'dialog theme must stay scoped to the homepage');
+  for (const [token, homeToken] of Object.entries({
+    bg: 'paper', surface: 'surface', 'surface-2': 'paper',
+    text: 'ink', muted: 'muted', line: 'line', accent: 'teal',
+  })) {
+    assert.match(dialog, new RegExp(`--${token}: var\\(--home-${homeToken}\\);`));
+  }
+  assert.match(css, /body\.on-home dialog \.seg input:checked \+ span \{ background: var\(--accent\); color: var\(--accent-ink\); \}/);
+  assert.match(css, /body\[data-home-theme='dark'\]\.on-home dialog \{ color-scheme: dark; --accent-ink: #151817; \}/);
+});

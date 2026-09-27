@@ -49,9 +49,30 @@ body[data-home-theme='dark'] .reader-action { color: #151817; }
 .brand-footer { border-top: 1px solid var(--home-line); padding: 26px 0; color: var(--home-muted); font-size: 14px; }
 .brand-footer .brand-shell { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
 .brand-footer a { color: inherit; text-underline-offset: 4px; }
-body.on-home dialog { --surface: var(--home-surface); --text: var(--home-ink); --muted: var(--home-muted); --line: var(--home-line); --accent: var(--home-teal); --accent-ink: #fff; color-scheme: light; color: var(--home-ink); font-family: 'Blog Sans', sans-serif; border-radius: 4px; }
-body.on-home dialog textarea { background: var(--home-paper); }
-body.on-home dialog .btn { border-radius: 4px; }
+/* Map the complete control palette so dark reader tokens cannot leak into light dialogs. */
+body.on-home dialog {
+  --bg: var(--home-paper);
+  --surface: var(--home-surface);
+  --surface-2: var(--home-paper);
+  --text: var(--home-ink);
+  --muted: var(--home-muted);
+  --line: var(--home-line);
+  --accent: var(--home-teal);
+  --accent-ink: #fff;
+  color-scheme: light;
+  color: var(--text);
+  font-family: 'Blog Sans', sans-serif;
+  border-radius: 4px;
+}
+body.on-home dialog textarea,
+body.on-home dialog select { background: var(--bg); color: var(--text); border-color: var(--muted); border-radius: 4px; }
+body.on-home dialog select option { background: var(--bg); color: var(--text); }
+body.on-home dialog textarea::placeholder { color: var(--muted); opacity: 1; }
+body.on-home dialog .btn { min-height: 44px; border-radius: 4px; }
+body.on-home dialog .seg { border-color: var(--muted); border-radius: 4px; }
+body.on-home dialog .seg span { display: flex; align-items: center; min-height: 44px; border-radius: 2px; color: var(--text); }
+body.on-home dialog .seg input:checked + span { background: var(--accent); color: var(--accent-ink); }
+body.on-home dialog :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 body[data-home-theme='dark'].on-home dialog { color-scheme: dark; --accent-ink: #151817; }
 .reader-home :focus-visible { outline: 2px solid var(--home-teal); outline-offset: 4px; }
 @media (max-width: 800px) {
