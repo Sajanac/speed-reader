@@ -5,6 +5,7 @@ import { speechSupported, listVoices, pickVoice, voiceLabel, claimPlaybackAudio,
 import { importFile, articleFromHtml } from './importers.js';
 import { bookmarkletHref, appUrl } from './bookmarklet.js';
 import * as store from './store.js';
+import { isLanding, showLanding, showReader } from './landing.js';
 
 const $ = (id) => document.getElementById(id);
 const el = {
@@ -206,6 +207,7 @@ function loadDocument(meta, text) {
     return;
   }
   current = { meta, doc };
+  showReader();
   lastSaved = meta.position;
   el.title.textContent = meta.title;
   document.title = `${meta.title} · Speed Reader`;
@@ -264,6 +266,17 @@ for (const d of [dlgImport, dlgLibrary, dlgSettings]) {
 }
 
 $('btn-import').addEventListener('click', () => openDialog(dlgImport));
+$('home-resume').addEventListener('click', () => {
+  if (!current) return;
+  showReader();
+  document.title = `${current.meta.title} · Speed Reader`;
+  render(player.index);
+  el.play.focus();
+});
+$('btn-reader-home').addEventListener('click', () => {
+  player.pause();
+  showLanding(current?.meta);
+});
 $('btn-settings').addEventListener('click', () => {
   populateVoices();
   openDialog(dlgSettings);
@@ -527,6 +540,7 @@ el.voice.addEventListener('click', () => {
 });
 
 document.addEventListener('keydown', (e) => {
+  if (isLanding()) return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (document.querySelector('dialog[open]')) return;
   const t = e.target;
@@ -648,11 +662,16 @@ async function init() {
   updateStatus();
 
   if (location.hash === '#import') {
+    showReader();
     receiveFromBookmarklet();
     return;
   }
-  if (prefs.lastDocId && (await openStored(prefs.lastDocId).catch(() => false))) return;
+  if (prefs.lastDocId && (await openStored(prefs.lastDocId).catch(() => false))) {
+    showLanding(current.meta);
+    return;
+  }
   showPlaceholder('Tap + to import something to read');
+  showLanding();
 }
 
 init();

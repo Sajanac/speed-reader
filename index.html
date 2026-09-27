@@ -9,9 +9,10 @@
   <title>Speed Reader</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/landing.css">
   <script type="module" src="js/app.js"></script>
 </head>
-<body data-accent="teal" data-font="sans">
+<body class="on-home" data-accent="teal" data-font="sans">
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" fill="currentColor"/></symbol>
     <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="13.5" y="5" width="4" height="14" rx="1.2" fill="currentColor"/></symbol>
@@ -24,7 +25,34 @@
     <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
   </svg>
 
+  <div class="reader-home">
+    <header class="brand-header">
+      <div class="brand-shell brand-header-inner">
+        <a class="brand-home" href="https://sajanacharya.com/"><img src="brand/logo-mark.png" alt="" width="34" height="38">Sajan Acharya</a>
+        <nav class="brand-nav" aria-label="Site navigation">
+          <a href="https://sajanacharya.com/blog">Writing</a><a href="/" aria-current="page">Reader</a><a href="https://present.sajanacharya.com/">Presentations</a><a href="https://medcards.sajanacharya.com/">MedCards</a><a href="https://sajanacharya.com/about">About</a>
+        </nav>
+        <details class="brand-menu"><summary aria-label="Open navigation"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></summary><nav aria-label="Mobile site navigation"><a href="https://sajanacharya.com/blog">Writing</a><a href="/" aria-current="page">Reader</a><a href="https://present.sajanacharya.com/">Presentations</a><a href="https://medcards.sajanacharya.com/">MedCards</a><a href="https://sajanacharya.com/about">About</a></nav></details>
+        <button id="home-theme" class="brand-theme" aria-label="Use dark theme" title="Use dark theme"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6.25 6.25 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/></svg></button>
+      </div>
+    </header>
+    <main>
+      <section class="reader-intro"><div class="brand-shell">
+        <p class="reader-eyebrow">Reading / Focus / A little more time</p>
+        <h1>Speed Reader.<br>One <span>word</span> at a time.</h1>
+        <div class="reader-intro-bottom"><p>A quiet place for your next article, chapter, or idea. Bring something worth reading, and settle into your own pace.</p><button class="reader-action" data-reader-action="btn-import"><svg aria-hidden="true"><use href="#i-plus"/></svg>Import text</button></div>
+      </div></section>
+      <section class="reader-workspace brand-shell" aria-labelledby="reading-heading">
+        <div class="reader-workspace-head"><h2 id="reading-heading">Your reading</h2><button class="reader-text-button" data-reader-action="btn-library"><svg aria-hidden="true"><use href="#i-lib"/></svg>Library</button></div>
+        <div class="reader-continue" id="reader-continue" hidden><div><p>Pick up where you left off</p><h3 id="resume-title"></h3></div><button class="reader-action" id="home-resume"><svg aria-hidden="true"><use href="#i-play"/></svg>Continue reading</button></div>
+        <div class="reader-options"><button data-reader-action="btn-import"><svg aria-hidden="true"><use href="#i-plus"/></svg>Paste text or open a file</button><button data-reader-action="btn-sample"><svg aria-hidden="true"><use href="#i-play"/></svg>Try a sample</button><button data-reader-action="btn-settings"><svg aria-hidden="true"><use href="#i-gear"/></svg>Reading preferences</button></div>
+      </section>
+    </main>
+    <footer class="brand-footer"><div class="brand-shell"><span>Sajan Acharya</span><a href="https://sajanacharya.com/">Medicine, education, and a life in progress.</a></div></footer>
+  </div>
+
   <header class="topbar">
+    <button class="icon-btn" id="btn-reader-home" aria-label="Reader home" title="Reader home"><svg><use href="#i-back"/></svg></button>
     <a class="home-link" href="https://sajanacharya.com/" title="Back to sajanacharya.com"><span aria-hidden="true">←</span> <span class="home-long">sajanacharya.com</span><span class="home-short">Blog</span></a>
     <button class="icon-btn" id="btn-library" aria-label="Library" title="Library"><svg><use href="#i-lib"/></svg></button>
     <div class="doc-title" id="doc-title">Speed Reader</div>

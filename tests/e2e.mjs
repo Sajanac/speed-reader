@@ -149,14 +149,14 @@ const alignment = (page) =>
 const noDialogs = (page) => page.waitForFunction(() => !document.querySelector('dialog[open]'));
 
 async function loadSample(page) {
-  await page.click('#btn-import');
+  await page.locator('#btn-import:visible, [data-reader-action="btn-import"]:visible').first().click();
   await page.click('#btn-sample');
   await page.waitForFunction(() => document.getElementById('doc-title').textContent.startsWith('Sample'));
   await noDialogs(page);
 }
 
 async function loadText(page, text) {
-  await page.click('#btn-import');
+  await page.locator('#btn-import:visible, [data-reader-action="btn-import"]:visible').first().click();
   await page.fill('#paste-text', text);
   await page.click('#btn-read-paste');
   await page.waitForFunction(() => !document.getElementById('dlg-import').open);
@@ -326,6 +326,7 @@ await step('progress and WPM persist across reload', async () => {
   });
   await page.waitForTimeout(300);
   await page.reload();
+  await page.click('#home-resume');
   await page.waitForFunction(() => document.getElementById('doc-title').textContent.startsWith('Sample'));
   const s = await state(page);
   assert.equal(s.scrub, 57);
