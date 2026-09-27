@@ -40,9 +40,11 @@ On iPhone and iPad, a Home Screen web app has separate storage from Safari. Use 
 Add these two lines to your article template:
 
 ```html
-<script src="https://sajanac.github.io/speed-reader/embed.js" defer></script>
+<script src="https://reader.sajanacharya.com/embed.js" defer></script>
 <button type="button" data-speed-read>Speed read this article</button>
 ```
+
+The older address `https://sajanac.github.io/speed-reader/embed.js` also works: GitHub Pages forwards it to the custom domain, and the hand-off accepts the reader tab even when its address has been forwarded.
 
 Clicking the button opens the reader in a new tab with the article loaded. The script reads the element marked `data-speed-read-content`, or else the page's `<article>`, or else `<main>`. To leave something out (a newsletter box or related links, for example), add `data-speed-read-skip` to it. Buttons, forms, navigation and scripts inside the article are skipped automatically.
 
@@ -64,6 +66,10 @@ npm install && npm run test:e2e   # browser tests (needs a Chromium; set CHROMIU
 ## Deploy to GitHub Pages
 
 Go to Settings › Pages, choose **Deploy from a branch**, and select `main` / `(root)`.
+
+The reader is served at `reader.sajanacharya.com`. That needs a DNS `CNAME` record for `reader` pointing to `sajanac.github.io`, and `reader.sajanacharya.com` entered as the custom domain under Settings › Pages. GitHub stores the custom domain in a `CNAME` file in the repo.
+
+The **← Blog** link in the top bar is set in `index.html` (`.home-link`).
 
 ## Third-party code (in `vendor/`)
 

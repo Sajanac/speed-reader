@@ -12,7 +12,6 @@
 (function () {
   var script = document.currentScript;
   var READER = new URL('./', script ? script.src : location.href).href;
-  var ORIGIN = new URL(READER).origin;
 
   function articleElement() {
     return (
@@ -52,9 +51,11 @@
       alert('Please allow pop-ups for this site to use Speed Reader.');
       return;
     }
+    // Only the tab we opened can answer. Its origin may differ from the
+    // script's if the reader's address redirects (e.g. to a custom domain).
     function onMessage(ev) {
-      if (ev.origin !== ORIGIN || ev.source !== win || !ev.data) return;
-      if (ev.data.type === 'rsvp-ready') win.postMessage(data, ORIGIN);
+      if (ev.source !== win || !ev.data) return;
+      if (ev.data.type === 'rsvp-ready') win.postMessage(data, ev.origin);
       if (ev.data.type === 'rsvp-received') window.removeEventListener('message', onMessage);
     }
     window.addEventListener('message', onMessage);

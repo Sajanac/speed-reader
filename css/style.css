@@ -70,6 +70,20 @@ body.reading .toast {
   gap: 4px;
   padding: 8px 12px;
 }
+.home-link {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 14px;
+  padding: 8px 6px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+.home-link:hover, .home-link:focus-visible { color: var(--text); background: var(--surface); }
+.home-short { display: none; }
+@media (max-width: 600px) {
+  .home-long { display: none; }
+  .home-short { display: inline; }
+}
 .doc-title {
   flex: 1;
   min-width: 0;

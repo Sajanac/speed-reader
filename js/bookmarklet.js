@@ -3,6 +3,10 @@
 // reader in a new tab, and hands the page over with postMessage. The reader
 // then extracts the article with Readability.
 //
+// Only the tab it opened can ask for the page. That tab's origin can differ
+// from the one in the bookmarklet if the reader's address has moved and
+// redirects (for example to a custom domain), so older bookmarklets keep working.
+//
 // If the site blocks the hand-off (for example with a strict
 // Cross-Origin-Opener-Policy), a banner offers to copy the article text so it
 // can be pasted into the reader instead.
@@ -15,8 +19,8 @@ var c=document.documentElement.cloneNode(true);
 c.querySelectorAll('script,style,noscript,iframe,svg,template,link,video,audio,canvas,object,embed').forEach(function(n){n.remove();});
 var P={type:'rsvp-import',url:location.href,title:document.title,html:'<!doctype html>'+c.outerHTML};
 var w=window.open(A+'#import','_blank'),ok=false;
-function M(e){if(e.origin!==O||!e.data)return;
-if(e.data.type==='rsvp-ready'){ok=true;e.source.postMessage(P,O);}
+function M(e){if(!w||e.source!==w||!e.data)return;
+if(e.data.type==='rsvp-ready'){ok=true;w.postMessage(P,e.origin);}
 if(e.data.type==='rsvp-received')window.removeEventListener('message',M);}
 window.addEventListener('message',M);
 function B(){if(ok)return;

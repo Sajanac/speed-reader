@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import JSZip from 'jszip';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
+import { bookmarkletHref } from '../js/bookmarklet.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '..');
@@ -21,6 +22,9 @@ const servers = [
   spawn('node', [path.join(here, 'serve.mjs'), root, '8123']),
   spawn('node', [path.join(here, 'serve.mjs'), path.join(here, 'fixtures'), '8124']),
   spawn('node', [path.join(here, 'serve.mjs'), path.join(here, 'fixtures'), '8125', 'coop']),
+  // Old reader address that forwards to the new one, like GitHub Pages after
+  // a custom domain is set.
+  spawn('node', [path.join(here, 'serve.mjs'), root, '8126', 'redirect=' + APP]),
 ];
 await new Promise((r) => setTimeout(r, 400));
 
@@ -502,6 +506,34 @@ await step('embed.js button on a blog opens the article in the reader', async ()
   await blog.close();
 });
 
+await step('blog button and old bookmarklet still work after the reader moves', async () => {
+  const blog = await context.newPage();
+  await blog.goto(SITE + 'blog-moved.html');
+  await blog.waitForFunction(() => window.SpeedReader);
+  let popupPromise = context.waitForEvent('page');
+  await blog.click('[data-speed-read]');
+  let popup = await popupPromise;
+  await popup.waitForFunction(() => document.getElementById('doc-title').textContent === 'Why I Walk', null, { timeout: 10000 });
+  assert.equal(new URL(popup.url()).origin, new URL(APP).origin);
+  await popup.close();
+  await blog.close();
+
+  const oldHref = bookmarkletHref('http://127.0.0.1:8126/');
+  const article = await context.newPage();
+  await article.goto(SITE + 'article.html');
+  popupPromise = context.waitForEvent('page');
+  await article.evaluate(decodeURIComponent(oldHref.slice('javascript:'.length)));
+  popup = await popupPromise;
+  await popup.waitForFunction(() => document.getElementById('doc-title').textContent === 'The Quiet Lighthouse', null, { timeout: 10000 });
+  await popup.close();
+  await article.close();
+});
+
+await step('back-to-blog link', async () => {
+  assert.equal(await page.getAttribute('.home-link', 'href'), 'https://sajanacharya.com/');
+  assert.equal(await page.isVisible('.home-long'), true);
+});
+
 await step('phone layout', async () => {
   const phone = await newPage({ width: 390, height: 844 });
   await phone.page.goto(APP);
@@ -513,6 +545,8 @@ await step('phone layout', async () => {
   });
   const a = await alignment(phone.page);
   assert.ok(Math.abs(a.offset) < 0.75 && a.fits);
+  assert.equal(await phone.page.isVisible('.home-short'), true);
+  assert.equal(await phone.page.isVisible('.home-long'), false);
   const overflow = await phone.page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   assert.equal(overflow, false, 'horizontal scroll on phone');
   if (shots) await phone.page.screenshot({ path: path.join(shots, 'phone.png') });
