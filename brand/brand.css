@@ -1,0 +1,29 @@
+button.nepal-theme-toggle {
+  display: grid; place-items: center; flex: 0 0 48px;
+  width: 48px; height: 54px; min-width: 48px; padding: 0;
+  border: 0; border-radius: 4px; background: transparent; box-shadow: none;
+  cursor: pointer; touch-action: manipulation; transform: none;
+}
+button.nepal-theme-toggle:hover { transform: none; background: transparent; }
+button.nepal-theme-toggle:focus-visible { outline: 2px solid #168c81; outline-offset: 3px; }
+button.nepal-theme-toggle .nepal-flag { display: block; width: 44px; height: 54px; overflow: visible; stroke: none; fill: none; }
+.nepal-sun, .nepal-moon { transition: opacity 240ms ease, filter 240ms ease, color 240ms ease; }
+.nepal-sun { color: #fff5ce; filter: drop-shadow(0 0 2px #ffdc55) drop-shadow(0 0 5px #ff971c); animation: nepal-sun-glow 2.6s ease-in-out infinite alternate; }
+.nepal-moon { color: #fff; opacity: .4; filter: none; }
+[data-theme-state='dark'] .nepal-sun { color: #fff; opacity: .35; filter: none; animation: none; }
+[data-theme-state='dark'] .nepal-moon { opacity: 1; color: #fff; filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 5px #b9ebff); animation: nepal-moon-glow 3.2s ease-in-out infinite alternate; }
+@keyframes nepal-sun-glow { to { filter: drop-shadow(0 0 3px #ffdc55) drop-shadow(0 0 7px #ff971c); } }
+@keyframes nepal-moon-glow { to { filter: drop-shadow(0 0 3px #fff) drop-shadow(0 0 7px #b9ebff); } }
+.elastic-effect-root { position: relative; }
+.elastic-underline { text-decoration: underline 3px #c9443e; text-underline-offset: 6px; }
+.elastic-effect-root :is(.elastic-underline, .elastic-nav-label, u, a) { text-decoration: none !important; }
+.elastic-underline-svg { position: absolute; height: 24px; overflow: visible; pointer-events: none; }
+.elastic-underline-path { fill: none; stroke: var(--red, #c9443e); stroke-linecap: round; stroke-width: 3; vector-effect: non-scaling-stroke; }
+.reader-home, .landing-page, .blog-home { --red: #cf443e; }
+body[data-home-theme='dark'] .reader-home, .dark .landing-page, .blog-home[data-home-theme='dark'] { --red: #f06f68; }
+.elastic-nav-label { --elastic-visible: 0; }
+:is(a, button):is([aria-current], .is-current, .is-active, :hover, :focus-visible) .elastic-nav-label { --elastic-visible: 1; }
+.elastic-nav-label { text-decoration: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .nepal-sun, .nepal-moon { animation: none !important; transition: none; }
+}

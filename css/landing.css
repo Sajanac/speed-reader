@@ -17,7 +17,7 @@ body[data-home-theme='dark'] .reader-home { --home-paper: #151817; --home-surfac
 body[data-home-theme='dark'] .brand-home img { filter: invert(1); }
 .brand-nav { display: flex; align-items: center; gap: 28px; }
 .brand-nav a, .brand-menu a { color: var(--home-muted); font-size: 14px; font-weight: 700; text-decoration: none; }
-.brand-nav a[aria-current], .brand-nav a:hover, .brand-menu a[aria-current] { color: var(--home-teal); text-decoration: underline; text-underline-offset: 6px; }
+.brand-nav a[aria-current], .brand-nav a:hover, .brand-menu a[aria-current] { color: var(--home-teal); }
 .brand-theme, .brand-menu summary { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; color: var(--home-ink); border: 1px solid var(--home-line); border-radius: 50%; background: var(--home-surface); cursor: pointer; }
 .brand-theme { box-shadow: 0 6px 16px #087f7524; }
 .brand-menu { display: none; position: relative; }
