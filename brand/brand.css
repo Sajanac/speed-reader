@@ -8,12 +8,16 @@ button.nepal-theme-toggle:hover { transform: none; background: transparent; }
 button.nepal-theme-toggle:focus-visible { outline: 2px solid #168c81; outline-offset: 3px; }
 button.nepal-theme-toggle .nepal-flag { display: block; width: 44px; height: 54px; overflow: visible; stroke: none; fill: none; }
 .nepal-sun, .nepal-moon { transition: opacity 240ms ease, filter 240ms ease, color 240ms ease; }
-.nepal-sun { color: #fff5ce; filter: drop-shadow(0 0 2px #ffdc55) drop-shadow(0 0 5px #ff971c); animation: nepal-sun-glow 2.6s ease-in-out infinite alternate; }
+.nepal-sun { color: #ffe34f; filter: drop-shadow(0 0 1px #fff397) drop-shadow(0 0 2.4px #ffc400); animation: nepal-sun-glow 1.8s ease-in-out infinite; }
 .nepal-moon { color: #fff; opacity: .4; filter: none; }
 [data-theme-state='dark'] .nepal-sun { color: #fff; opacity: .35; filter: none; animation: none; }
-[data-theme-state='dark'] .nepal-moon { opacity: 1; color: #fff; filter: drop-shadow(0 0 2px #fff) drop-shadow(0 0 5px #b9ebff); animation: nepal-moon-glow 3.2s ease-in-out infinite alternate; }
-@keyframes nepal-sun-glow { to { filter: drop-shadow(0 0 3px #ffdc55) drop-shadow(0 0 7px #ff971c); } }
-@keyframes nepal-moon-glow { to { filter: drop-shadow(0 0 3px #fff) drop-shadow(0 0 7px #b9ebff); } }
+[data-theme-state='dark'] .nepal-moon { opacity: 1; color: #b9fff0; filter: drop-shadow(0 0 1px #57f0d3) drop-shadow(0 0 2.4px #19cbb0); animation: nepal-moon-glow 3.2s ease-in-out infinite alternate; }
+@keyframes nepal-sun-glow {
+  0%, 100% { color: #ffe34f; filter: drop-shadow(0 0 1px #fff397) drop-shadow(0 0 2.4px #ffc400); }
+  38%, 78% { color: #fff08a; filter: drop-shadow(0 0 1.4px #fff5a6) drop-shadow(0 0 3.2px #ffcc00); }
+  58% { color: #ffd429; filter: drop-shadow(0 0 .8px #ffe66b) drop-shadow(0 0 2px #ffbd00); }
+}
+@keyframes nepal-moon-glow { to { filter: drop-shadow(0 0 1.4px #79ffe1) drop-shadow(0 0 3.2px #19cbb0); } }
 .elastic-effect-root { position: relative; }
 .elastic-underline { text-decoration: underline 3px #c9443e; text-underline-offset: 6px; }
 .elastic-effect-root :is(.elastic-underline, .elastic-nav-label, u, a) { text-decoration: none !important; }

@@ -152,4 +152,9 @@ test('Nepal switch keeps its emblems separately animatable and supports reduced 
   for (const id of ['field', 'moon', 'sun']) assert.ok(svg.includes(`id="${id}"`));
   assert.match(css, /\[data-theme-state='dark'\] \.nepal-moon/);
   assert.match(css, /prefers-reduced-motion: reduce/);
+  assert.match(svg, /id="moon"[^>]+scale\(\.72\)/);
+  assert.match(svg, /id="sun"[^>]+scale\(\.68\)/);
+  assert.match(css, /\.nepal-sun \{ color: #ffe34f;/);
+  assert.match(css, /\[data-theme-state='dark'\] \.nepal-moon \{ opacity: 1; color: #b9fff0;/);
+  assert.match(css, /drop-shadow\(0 0 2\.4px #19cbb0\)/);
 });
