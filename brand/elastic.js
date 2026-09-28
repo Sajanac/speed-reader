@@ -25,6 +25,7 @@ export function mountElasticUnderlines(effectRoot, selector = ".elastic-underlin
             const svg = document.createElementNS(SVG_NS, "svg");
             const path = document.createElementNS(SVG_NS, "path");
             svg.classList.add("elastic-underline-svg");
+            if (mark.matches('.elastic-nav-label')) svg.classList.add('elastic-nav-svg');
             svg.style.height = '24px';
             svg.setAttribute("aria-hidden", "true");
             svg.setAttribute("focusable", "false");
@@ -41,6 +42,8 @@ export function mountElasticUnderlines(effectRoot, selector = ".elastic-underlin
                 segments.pop()?.svg.remove();
         }
         function lineRects() {
+            const closedDetails = mark.closest('details:not([open])');
+            if (closedDetails && !closedDetails.querySelector(':scope > summary')?.contains(mark)) return [];
             // Text ranges keep padded links from producing an underline across the entire button box.
             if (mark.matches('a')) {
                 const lines = [];

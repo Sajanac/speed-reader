@@ -42,14 +42,16 @@ test('choice is shared with only the real subdomains, and private storage still 
 });
 
 const elasticSource = (await readFile(new URL('../brand/elastic.js', import.meta.url), 'utf8')).replaceAll('export function', 'function');
-function elasticEnvironment({ reduced = false, link = false, rects = [{ left: 10, top: 20, right: 90, bottom: 40, width: 80, height: 20 }] } = {}) {
+function elasticEnvironment({ reduced = false, link = false, closedMenu = false, rects = [{ left: 10, top: 20, right: 90, bottom: 40, width: 80, height: 20 }] } = {}) {
   const events = new Map();
+  const rootEvents = new Map();
   const nodes = [];
   const frames = new Map();
   let frameId = 0;
   let visible = '1';
   const mark = {
-    isConnected: true, textContent: 'Example', matches: (selector) => link && selector.includes('a'), closest: () => null,
+    isConnected: true, textContent: 'Example', matches: (selector) => link && selector.split(',').map((part) => part.trim()).includes('a'),
+    closest: (selector) => closedMenu && selector === 'details:not([open])' ? { querySelector: () => null } : null,
     querySelector: () => null,
     getClientRects: () => link ? [{ left: 0, top: 0, right: 300, bottom: 100, width: 300, height: 100 }] : rects,
     addEventListener: (name, fn) => events.set(name, fn), removeEventListener: (name) => events.delete(name),
@@ -59,7 +61,7 @@ function elasticEnvironment({ reduced = false, link = false, rects = [{ left: 10
     classList: { add() {}, remove() {} }, querySelectorAll: () => [mark],
     appendChild: (node) => nodes.push(node),
     getBoundingClientRect: () => ({ left: 0, top: 0 }),
-    addEventListener() {}, removeEventListener() {},
+    addEventListener: (name, fn) => rootEvents.set(name, fn), removeEventListener: (name) => rootEvents.delete(name),
   };
   class Observer { observe() {} disconnect() {} }
   const env = {
@@ -80,7 +82,7 @@ function elasticEnvironment({ reduced = false, link = false, rects = [{ left: 10
   };
   vm.createContext(env); vm.runInContext(elasticSource, env);
   const cleanup = env.mountElasticUnderlines(root);
-  return { nodes, frames, events, cleanup, root, setVisible: (value) => { visible = value; } };
+  return { nodes, frames, events, cleanup, root, setVisible: (value) => { visible = value; }, setMenuOpen: (value) => { closedMenu = !value; rootEvents.get('toggle')(); } };
 }
 
 test('elastic lines preserve wrapped text widths and spring in either mouse direction', () => {
@@ -117,6 +119,17 @@ test('padded links underline only their text and merge fragments on each line', 
   ] });
   assert.deepEqual(env.nodes.map((node) => node.style.width), ['80px', '40px']);
   assert.deepEqual(env.nodes.map((node) => node.style.left), ['10px', '10px']);
+  env.cleanup();
+});
+
+test('closed mobile menus cannot leave floating underlines on the page', () => {
+  const env = elasticEnvironment({ closedMenu: true });
+  assert.equal(env.nodes.length, 0);
+  env.setMenuOpen(true);
+  assert.equal(env.nodes.length, 1);
+  assert.equal(env.nodes[0].style.width, '80px');
+  env.setMenuOpen(false);
+  assert.ok(env.nodes[0].removed);
   env.cleanup();
 });
 

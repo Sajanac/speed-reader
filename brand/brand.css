@@ -18,6 +18,7 @@ button.nepal-theme-toggle .nepal-flag { display: block; width: 44px; height: 54p
 .elastic-underline { text-decoration: underline 3px #c9443e; text-underline-offset: 6px; }
 .elastic-effect-root :is(.elastic-underline, .elastic-nav-label, u, a) { text-decoration: none !important; }
 .elastic-underline-svg { position: absolute; height: 24px; overflow: visible; pointer-events: none; }
+.elastic-nav-svg { z-index: 100; }
 .elastic-underline-path { fill: none; stroke: var(--red, #c9443e); stroke-linecap: round; stroke-width: 3; vector-effect: non-scaling-stroke; }
 .reader-home, .landing-page, .blog-home { --red: #cf443e; }
 body[data-home-theme='dark'] .reader-home, .dark .landing-page, .blog-home[data-home-theme='dark'] { --red: #f06f68; }
