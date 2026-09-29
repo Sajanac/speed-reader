@@ -9,7 +9,7 @@ button.nepal-theme-toggle:focus-visible { outline: 2px solid #168c81; outline-of
 button.nepal-theme-toggle .nepal-flag { display: block; width: 44px; height: 54px; overflow: visible; stroke: none; fill: none; }
 .nepal-sun, .nepal-moon { transition: opacity 240ms ease, filter 240ms ease, color 240ms ease; }
 .nepal-sun { color: #ffe34f; filter: drop-shadow(0 0 1px #fff397) drop-shadow(0 0 2.4px #ffc400); animation: nepal-sun-glow 1.8s ease-in-out infinite; }
-.nepal-moon { color: #fff; opacity: .4; filter: none; }
+.nepal-moon { color: #42635f; opacity: .42; filter: none; }
 [data-theme-state='dark'] .nepal-sun { color: #fff; opacity: .35; filter: none; animation: none; }
 [data-theme-state='dark'] .nepal-moon { opacity: 1; color: #b9fff0; filter: drop-shadow(0 0 1px #57f0d3) drop-shadow(0 0 2.4px #19cbb0); animation: nepal-moon-glow 3.2s ease-in-out infinite alternate; }
 @keyframes nepal-sun-glow {

@@ -150,6 +150,9 @@ test('Nepal switch keeps its emblems separately animatable and supports reduced 
   const svg = await readFile(new URL('../brand/nepal-flag.svg', import.meta.url), 'utf8');
   const css = await readFile(new URL('../brand/brand.css', import.meta.url), 'utf8');
   for (const id of ['field', 'moon', 'sun']) assert.ok(svg.includes(`id="${id}"`));
+  assert.match(svg, /fill="#168c81" fill-rule="evenodd"/);
+  assert.doesNotMatch(svg, /#17409a|#dc143c/);
+  assert.match(css, /\.nepal-moon \{ color: #42635f; opacity: \.42;/);
   assert.match(css, /\[data-theme-state='dark'\] \.nepal-moon/);
   assert.match(css, /prefers-reduced-motion: reduce/);
   assert.match(svg, /id="moon"[^>]+scale\(\.72\)/);

@@ -1,8 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 60">
   <defs>
     <g id="field">
-      <path fill="#17409a" d="M5 2 43 29H23L44 57H5Z"/>
-      <path fill="#dc143c" d="M8 8 34 26H17L38 54H8Z"/>
+      <path fill="#168c81" fill-rule="evenodd" d="M5 2 43 29H23L44 57H5Z M8 8 34 26H17L38 54H8Z"/>
     </g>
     <g id="moon" fill="currentColor" transform="translate(3.54 5.52) scale(.72)">
       <path d="M12 20a6 6 0 0 0 12 0 7 7 0 0 1-12 0Z"/>
