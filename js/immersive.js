@@ -1,6 +1,6 @@
 // A selectable read-along view. Only the active paragraph contains marks;
 // entire books do not need an element for every word.
-import { normalize, endsSentence } from './text.js';
+import { normalize, endsSentence } from './text.js?v=20261011';
 
 export const HIGHLIGHT_COLORS = Object.freeze({
   lavender: { label: 'Lavender', rgb: '197, 180, 244' },

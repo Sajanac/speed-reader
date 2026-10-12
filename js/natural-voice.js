@@ -1,7 +1,7 @@
 // No hosted TTS account is used. Downloadable browser inference is opt-in;
 // the local adapter calls the user's own Kokoro-FastAPI service.
-import { buildDoc, normalize, endsSentence } from './text.js';
-import { validateAudioManifest } from './narration.js';
+import { buildDoc, normalize, endsSentence } from './text.js?v=20261011';
+import { validateAudioManifest } from './narration.js?v=20261011';
 
 export const BROWSER_RUNTIME = 'https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/dist/kokoro.web.js';
 export const BROWSER_MODEL = 'onnx-community/Kokoro-82M-v1.0-ONNX';
@@ -177,7 +177,7 @@ async function localSegment(segment, words, options) {
 
 function browserWorker(onProgress, signal) {
   if (typeof Worker === 'undefined') throw new Error('This browser cannot run the local voice worker. Use the local API or a device voice.');
-  const worker = new Worker(new URL('./natural-voice.js', import.meta.url), { type: 'module' });
+  const worker = new Worker(new URL('./natural-voice.js?v=20261011', import.meta.url), { type: 'module' });
   let id = 0;
   const pending = new Map();
   const cancel = () => {

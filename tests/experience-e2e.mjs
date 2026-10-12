@@ -1,7 +1,7 @@
 // Integration checks for read-along, listening, prepared audio, and documents.
 // Run: CHROMIUM_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" node tests/experience-e2e.mjs
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { once } from 'node:events';
 import fs from 'node:fs/promises';
 import http from 'node:http';
@@ -227,6 +227,44 @@ async function pdfFixture() {
     page.drawText('A useful paragraph follows the heading for clear narration.', { x: 45, y: 580, size: 12, font });
   }
   return { name: 'two-pages.pdf', mimeType: 'application/pdf', buffer: Buffer.from(await pdf.save()) };
+}
+
+// Simulate a browser/CDN retaining immutable module URLs from the previous
+// release. New release-tagged URLs use today's files. This fixture also
+// checks that the service worker does not repopulate its shell with old URLs.
+async function cachedReleaseFixture() {
+  const previous = 'ac0bfa8';
+  const tracked = execFileSync('git', ['ls-tree', '-r', '--name-only', previous], { cwd: root, encoding: 'utf8' }).trim().split('\n');
+  const old = new Map();
+  for (const file of tracked.filter((file) => file === 'index.html' || /^(?:js|brand)\/.*\.js$/.test(file))) {
+    old.set(file, execFileSync('git', ['show', `${previous}:${file}`], { cwd: root }));
+  }
+  let phase = 'previous';
+  const requests = [];
+  const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
+  const fixture = http.createServer(async (request, response) => {
+    try {
+      const location = new URL(request.url, 'http://fixture');
+      let file = decodeURIComponent(location.pathname).replace(/^\//, '');
+      if (!file || file.endsWith('/')) file += 'index.html';
+      if (file.includes('..')) return response.writeHead(403).end();
+      let body;
+      const previousModule = old.has(file) && file.endsWith('.js') && !location.search;
+      if (file === 'index.html' && phase === 'previous') body = old.get(file);
+      else if (previousModule) body = old.get(file);
+      else body = await fs.readFile(path.join(root, file));
+      if (file === 'index.html' && phase === 'mixed') {
+        body = Buffer.from(body.toString().replace(/(src=["']js\/app\.js)(?:\?[^"']*)?(["'])/, '$1$2'));
+      }
+      requests.push({ url: location.pathname + location.search, phase, previousModule });
+      response.writeHead(200, { 'content-type': types[path.extname(file)] || 'application/octet-stream',
+        'cache-control': file.endsWith('.js') && file !== 'sw.js' ? 'public, max-age=31536000, immutable' : 'no-store' }).end(body);
+    } catch { response.writeHead(404).end('not found'); }
+  });
+  fixture.listen(0, '127.0.0.1');
+  await once(fixture, 'listening');
+  return { url: `http://127.0.0.1:${fixture.address().port}/`, requests, setPhase(next) { phase = next; },
+    async close() { fixture.closeAllConnections(); await new Promise((resolve) => fixture.close(resolve)); } };
 }
 
 try {
@@ -492,6 +530,61 @@ try {
       assert.equal(await page.locator('#immersive-reader .immersive-content').textContent(), payload.manifest.text);
       assert.deepEqual(errors, []);
     } finally { await context.close(); }
+  });
+
+  await step('release-tagged modules upgrade an old cached reader and retain new controls after offline reload', async () => {
+    const fixture = await cachedReleaseFixture();
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    await context.addInitScript(installDeviceMocks);
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    try {
+      await page.goto(fixture.url);
+      await loadText(page, READING_TEXT);
+      assert.ok(fixture.requests.some((request) => request.url === '/js/app.js' && request.previousModule));
+      assert.ok(fixture.requests.some((request) => request.url === '/js/engine.js' && request.previousModule), 'The old dependency graph is primed too');
+
+      fixture.setPhase('mixed');
+      await page.reload();
+      await page.waitForSelector('#home-read-along:visible');
+      await page.click('#home-read-along');
+      assert.equal(await page.locator('body').evaluate((body) => body.classList.contains('on-home')), true,
+        'New markup paired with the old cached app reproduces the inert immersive button');
+
+      fixture.setPhase('current');
+      await page.reload();
+      await page.waitForSelector('#home-read-along:visible');
+      const entry = await page.locator('script[src*="js/app.js"]').getAttribute('src');
+      const release = new URL(entry, fixture.url).searchParams.get('v');
+      assert.ok(release, 'The new entry has a release cache key');
+      await page.click('#home-read-along');
+      await page.waitForSelector('#immersive-reader:visible');
+      assert.equal(await page.locator('#mode-immersive').getAttribute('aria-pressed'), 'true');
+      await page.click('#btn-narration');
+      await page.waitForSelector('#dlg-narration[open]');
+      assert.equal(await page.locator('#voice-engine option[value="local"]').count(), 1);
+      await closeDialog(page, 'dlg-narration');
+      await page.click('#btn-play');
+      await page.waitForFunction(() => Number(document.querySelector('#scrub').value) > 0);
+      await usableControls(page);
+      await page.click('#btn-play');
+      assert.ok(fixture.requests.some((request) => request.url === `/js/app.js?v=${release}` && !request.previousModule));
+      assert.ok(fixture.requests.some((request) => request.url === `/js/engine.js?v=${release}` && !request.previousModule), 'New dependencies bypass the old cached graph');
+
+      await page.evaluate(() => navigator.serviceWorker.ready);
+      await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
+      await context.setOffline(true);
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#home-read-along:visible');
+      await page.click('#home-read-along');
+      await page.waitForSelector('#immersive-reader:visible');
+      await page.click('#btn-narration');
+      await page.waitForSelector('#dlg-narration[open]');
+      await closeDialog(page, 'dlg-narration');
+      assert.equal(await page.locator('#mode-immersive').getAttribute('aria-pressed'), 'true', 'The upgraded shell remains functional offline');
+      assert.deepEqual(errors, []);
+    } finally { await context.close(); await fixture.close(); }
   });
 
   await step('sentence-timed audio highlights the actual spoken passage without inventing word boundaries', async () => {

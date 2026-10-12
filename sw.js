@@ -1,4 +1,5 @@
-const CACHE = 'reader-shell-v1';
+const CACHE = 'reader-shell-v2';
+const RELEASE = '20261011';
 const SHELL = [ './', 'index.html', 'icon.svg', 'manifest.webmanifest',
   'css/style.css', 'css/landing.css', 'css/experience.css', 'css/immersive.css',
   'js/app.js', 'js/engine.js', 'js/speech.js', 'js/store.js', 'js/text.js',
@@ -9,7 +10,12 @@ const SHELL = [ './', 'index.html', 'icon.svg', 'manifest.webmanifest',
   'vendor/Readability.js', 'vendor/jszip.min.js', 'vendor/pdfjs/pdf.min.js', 'vendor/pdfjs/pdf.worker.min.js',
 ];
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
+  const requests = SHELL.map((path) => {
+    const url = new URL(path, self.location.href);
+    if (/\.(css|js)$/.test(url.pathname)) url.searchParams.set('v', RELEASE);
+    return new Request(url, { cache: 'reload' });
+  });
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(requests)).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (event) => {
   event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith('reader-shell-') && key !== CACHE).map((key) => caches.delete(key)))).then(() => self.clients.claim()));
@@ -21,7 +27,7 @@ self.addEventListener('fetch', (event) => {
     let cache;
     try { cache = await caches.open(CACHE); } catch { /* Network reading remains available when persistent storage is blocked. */ }
     try {
-      const response = await fetch(request);
+      const response = await fetch(request, { cache: 'no-cache' });
       if (cache && response.ok && (request.mode === 'navigate' || /\.(css|js|mjs|woff2|svg|png|bcmap)$/.test(url.pathname))) {
         try { await cache.put(request, response.clone()); } catch { /* Storage pressure must not hide a successful network response. */ }
       }

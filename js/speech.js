@@ -1,8 +1,8 @@
 // Text-to-speech using the browser's Web Speech API. In Safari this uses the
 // system (Apple) voices installed on the device.
 
-import { speechChunk, offsetToIndex } from './text.js';
-import { graphemes } from './orp.js';
+import { speechChunk, offsetToIndex } from './text.js?v=20261011';
+import { graphemes } from './orp.js?v=20261011';
 
 // Rough speaking speed of a voice at rate 1.0. Used to map WPM to a speech
 // rate and to estimate word timing when the browser sends no word events.

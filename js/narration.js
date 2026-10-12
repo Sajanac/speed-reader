@@ -1,5 +1,5 @@
 // Recorded narration uses the audio clock, including after a background tab resumes.
-import { buildDoc, normalize } from './text.js';
+import { buildDoc, normalize } from './text.js?v=20261011';
 
 const clamp = (value, lo, hi) => Math.min(hi, Math.max(lo, value));
 

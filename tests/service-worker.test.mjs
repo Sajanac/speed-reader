@@ -16,7 +16,8 @@ async function handle({ cache, fetch, mode = 'cors' }) {
 }
 test('successful network content remains fresh when cache writes exceed quota', async () => {
   const cache = { put: async () => { throw new Error('Quota exceeded'); },match: async () => new Response('old content') };
-  assert.equal(await handle({ cache,fetch: async () => new Response('fresh content') }),'fresh content');
+  const fetch = async (_request, options) => new Response(options?.cache === 'no-cache' ? 'fresh content' : 'stale HTTP cache');
+  assert.equal(await handle({ cache,fetch }),'fresh content');
 });
 test('blocked cache storage does not prevent network reading', async () => {
   assert.equal(await handle({ cache: new Error('Storage blocked'),fetch: async () => new Response('fresh content') }),'fresh content');

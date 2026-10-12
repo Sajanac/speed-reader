@@ -1,5 +1,5 @@
 // Local imports share normalized text and character-based section locations.
-import { htmlToText, normalize } from './text.js';
+import { htmlToText, normalize } from './text.js?v=20261011';
 
 const vendor = (path) => new URL(`../vendor/${path}`, import.meta.url).href;
 const OCR_VERSION = '7.0.0';

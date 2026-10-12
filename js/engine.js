@@ -1,7 +1,7 @@
 // Playback engine. Silent mode shows words on a timer driven by WPM and the
 // dwell-time factors; read-aloud mode lets the voice drive word timing.
 
-import { Speaker, SPEECH_BASE_WPM } from './speech.js';
+import { Speaker, SPEECH_BASE_WPM } from './speech.js?v=20261011';
 
 export const MIN_WPM = 100;
 export const MAX_WPM = 1000;

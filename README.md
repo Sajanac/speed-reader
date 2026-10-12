@@ -77,6 +77,8 @@ Go to Settings › Pages, choose **Deploy from a branch**, and select `main` / `
 
 The reader is served at `reader.sajanacharya.com`. That needs a DNS `CNAME` record for `reader` pointing to `sajanac.github.io`, and `reader.sajanacharya.com` entered as the custom domain under Settings › Pages. GitHub stores the custom domain in a `CNAME` file in the repo.
 
+For a new release, update the `v=20261011` tag consistently in the entry script, local module imports, browser voice worker URL, and changed CSS links, then update `RELEASE` and bump `CACHE` in `sw.js`. GitHub Pages caches assets for ten minutes; versioned module URLs keep an existing browser from mixing old scripts with new markup. The service worker precaches the release URLs and revalidates network responses.
+
 The **← Blog** link in the top bar is set in `index.html` (`.home-link`).
 
 ## Third-party code (in `vendor/`)

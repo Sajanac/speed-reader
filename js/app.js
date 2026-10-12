@@ -1,15 +1,15 @@
-import { splitWord } from './orp.js';
-import { buildDoc, normalize, durationMs, sentenceStart, sentenceEnd } from './text.js';
-import { MIN_WPM, MAX_WPM } from './engine.js';
-import { ReadingPlayback } from './playback.js';
-import { NativeAudioNarrator } from './narration.js';
-import { ImmersiveReader, HIGHLIGHT_COLORS, wordAtOffset } from './immersive.js';
-import { prepareNaturalVoice, serializeAudioPackage, importAudioPackage, exportNarrationAudio, NATURAL_VOICES } from './natural-voice.js';
-import { speechSupported, listVoices, pickVoice, voiceLabel, claimPlaybackAudio, unlockAudio } from './speech.js';
-import { importFile, articleFromHtml } from './importers.js';
-import { bookmarkletHref, appUrl } from './bookmarklet.js';
-import * as store from './store.js';
-import { isLanding, showLanding, showReader } from './landing.js';
+import { splitWord } from './orp.js?v=20261011';
+import { buildDoc, normalize, durationMs, sentenceStart, sentenceEnd } from './text.js?v=20261011';
+import { MIN_WPM, MAX_WPM } from './engine.js?v=20261011';
+import { ReadingPlayback } from './playback.js?v=20261011';
+import { NativeAudioNarrator } from './narration.js?v=20261011';
+import { ImmersiveReader, HIGHLIGHT_COLORS, wordAtOffset } from './immersive.js?v=20261011';
+import { prepareNaturalVoice, serializeAudioPackage, importAudioPackage, exportNarrationAudio, NATURAL_VOICES } from './natural-voice.js?v=20261011';
+import { speechSupported, listVoices, pickVoice, voiceLabel, claimPlaybackAudio, unlockAudio } from './speech.js?v=20261011';
+import { importFile, articleFromHtml } from './importers.js?v=20261011';
+import { bookmarkletHref, appUrl } from './bookmarklet.js?v=20261011';
+import * as store from './store.js?v=20261011';
+import { isLanding, showLanding, showReader } from './landing.js?v=20261011';
 
 const $ = (id) => document.getElementById(id);
 const el = {
