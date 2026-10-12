@@ -1,6 +1,10 @@
 import { splitWord } from './orp.js';
-import { buildDoc, durationMs, sentenceStart, sentenceEnd } from './text.js';
-import { Player, MIN_WPM, MAX_WPM } from './engine.js';
+import { buildDoc, normalize, durationMs, sentenceStart, sentenceEnd } from './text.js';
+import { MIN_WPM, MAX_WPM } from './engine.js';
+import { ReadingPlayback } from './playback.js';
+import { NativeAudioNarrator } from './narration.js';
+import { ImmersiveReader, HIGHLIGHT_COLORS, wordAtOffset } from './immersive.js';
+import { prepareNaturalVoice, serializeAudioPackage, importAudioPackage, exportNarrationAudio, NATURAL_VOICES } from './natural-voice.js';
 import { speechSupported, listVoices, pickVoice, voiceLabel, claimPlaybackAudio, unlockAudio } from './speech.js';
 import { importFile, articleFromHtml } from './importers.js';
 import { bookmarkletHref, appUrl } from './bookmarklet.js';
@@ -33,30 +37,53 @@ Look at the coloured letter. Each word is positioned so that its optimal recogni
 
 Sentences end with a slightly longer pause. Commas, semicolons, and colons get a shorter one. Unusually long words, like incomprehensibility, stay on screen a little longer too.
 
-Use the slider below to change speed, the arrows to jump back or forward ten words, and the timeline to move anywhere in the text. Turn on Read aloud to hear the text in your device's voice while the words follow along.`;
+Use the slider below to change speed, the arrows to jump back or forward ten words, and the timeline to move anywhere in the text. Turn on Read aloud to hear the text in your device's voice while the words follow along.
+
+In Read along mode, you can select a passage and listen to just those words. Open Settings to try a pastel or neutral highlight, a half marker, or a simple underline. Scroll freely whenever you like, then tap Resume following to return to the spoken text.
+
+Voice speed has its own slider. Open Voice & audio for natural narration that runs on your device, or prepare audio on your Mac. Saved narration keeps listening simple when you put the screen away.`;
 
 const prefs = store.loadPrefs();
 let current = null; // { meta, doc }
 let dragging = false;
 let wakeLock = null;
+let fullNarration = null;
+let voicePreparation = null;
+let importController = null;
+let documentEpoch = 0;
+let selectedPassage = null;
+let currentSpan = null;
+let testingDeviceVoice = false;
 
-const player = new Player({
-  onWord: (i) => render(i),
+const player = new ReadingPlayback({
+  onWord: (i, span) => { currentSpan = span || null; render(i); },
   onState: (playing) => {
     document.body.classList.toggle('reading', playing);
     updatePlayButton(playing);
     updateContext();
     updateStatus();
-    if (playing) requestWakeLock();
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+    if (playing && prefs.mode !== 'listen') requestWakeLock();
     else {
       releaseWakeLock();
       saveProgress(true);
     }
   },
   onError: (err) => {
-    toast(err === 'not-allowed' ? 'Tap play to start reading aloud.' : `Speech stopped: ${err}`);
+    toast(err === 'not-allowed' ? 'Tap play to start reading aloud.' : String(err), 6000);
   },
+  onProgress: () => { if (current && player.usesAudio) { updateLabels(player.index); updateMediaPosition(); } },
 });
+
+const immersive = new ImmersiveReader({ container: $('immersive-reader'),
+  onSeek: (index) => { clearPassage(); player.seek(index); },
+  onSelection: (range) => { if (range) { selectedPassage = range; updateSelection(); } },
+  onManualScroll: () => { $('btn-follow').textContent = 'Resume following'; $('btn-follow').setAttribute('aria-pressed','false'); },
+});
+const highlightPreview = new ImmersiveReader({ container: $('highlight-preview') });
+const previewText = 'A comfortable place to read, one thoughtful sentence at a time.';
+highlightPreview.load(buildDoc(previewText), previewText);
+highlightPreview.setWord(5, { follow: false });
 
 // ---------------------------------------------------------------- rendering
 
@@ -75,12 +102,29 @@ function measureFont() {
 
 // Shrink a long word just enough that neither side runs past the box edge.
 function fitWord(before, pivot, after) {
+  if (el.reader.hidden || el.reader.clientWidth < 1) return;
   if (!fontSpec) measureFont();
   canvas.font = fontSpec;
   const p = canvas.measureText(pivot).width / 2;
   const need = Math.max(canvas.measureText(before).width + p, canvas.measureText(after).width + p);
   const half = el.reader.clientWidth / 2 - 4;
-  el.word.style.setProperty('--fit', need > half && need > 0 ? (half / need).toFixed(3) : '1');
+  let scale = need > half && need > 0 ? half / need : 1;
+  el.word.style.setProperty('--fit', String(Math.floor(scale * 10000) / 10000));
+  // Optical sizing and font rounding can differ from the canvas at a smaller
+  // size. Correct only long words against their actual rendered widths.
+  if (scale < 1) {
+    const width = (element) => {
+      const range = document.createRange(); range.selectNodeContents(element);
+      return range.getBoundingClientRect().width;
+    };
+    for (let pass = 0; pass < 2; pass++) {
+      const p = width(el.pivot) / 2;
+      const actual = Math.max(width(el.before) + p, width(el.after) + p);
+      if (actual <= half) break;
+      scale *= half / actual;
+      el.word.style.setProperty('--fit', String(Math.floor(scale * 10000) / 10000));
+    }
+  }
 }
 
 function showPlaceholder(text) {
@@ -101,10 +145,15 @@ function render(i) {
   el.pivot.textContent = pivot;
   el.after.textContent = after;
   fitWord(before, pivot, after);
+  if (prefs.mode === 'immersive') immersive.setWord(i, { follow: prefs.follow && player.playing, span: currentSpan });
+  const from = sentenceStart(current.doc.words, i), to = sentenceEnd(current.doc.words, i);
+  $('listen-context').textContent = current.doc.words.slice(from, to).map((word) => word.t).join(' ');
+  const section = sectionAt(i);
+  if (section >= 0) $('chapter-select').value = String(section);
   if (!dragging) el.scrub.value = i;
   updateLabels(i);
   if (!player.playing) updateContext();
-  saveProgress(false);
+  saveProgress(!player.playing);
 }
 
 function updateLabels(i) {
@@ -112,13 +161,16 @@ function updateLabels(i) {
   const pct = n > 1 ? Math.round((i / (n - 1)) * 100) : 100;
   el.pos.textContent = `${(i + 1).toLocaleString()} / ${n.toLocaleString()} · ${pct}%`;
   let ms;
-  if (player.speech) {
+  if (player.usesAudio) {
+    ms = (player.audio.duration - player.audio.currentTime) / player.rate * 1000;
+  } else if (player.speech) {
     const wpm = player.speaker.measuredWpm || player.wpm;
     ms = ((n - i - 1) * 60000) / wpm;
   } else {
     ms = durationMs(current.doc, i, n, player.wpm);
   }
-  el.time.textContent = `${formatDuration(ms)} left`;
+  const estimatedAudio = player.usesAudio && player.manifest.chunks.some((chunk) => chunk.durationEstimated || !chunk.duration);
+  el.time.textContent = `${estimatedAudio ? '~' : ''}${formatDuration(ms)} left`;
 }
 
 function formatDuration(ms) {
@@ -131,7 +183,7 @@ function formatDuration(ms) {
 
 // While paused, show the surrounding sentence with the current word marked.
 function updateContext() {
-  if (!current || player.playing) {
+  if (!current || player.playing || prefs.mode !== 'rsvp') {
     el.context.classList.remove('show');
     return;
   }
@@ -161,7 +213,7 @@ function updateStatus() {
     return;
   }
   const tick = () => {
-    const v = player.voice ? player.voice.name : 'default voice';
+    const v = player.usesAudio ? `${player.manifest.voice || 'Saved narration'} · ${player.audio.timing === 'sentence' ? 'sentence highlights' : 'word highlights'}` : (player.voice ? player.voice.name : 'default voice');
     const measured = player.speaker.measuredWpm;
     el.status.textContent =
       `Reading aloud · ${v} · rate ${player.rate.toFixed(2)}×` + (measured && player.playing ? ` · ~${measured} wpm measured` : '');
@@ -198,53 +250,110 @@ function saveProgress(now) {
   else if (!saveTimer) saveTimer = setTimeout(write, 1500);
 }
 
-function loadDocument(meta, text) {
+async function loadDocument(meta, originalText) {
   player.pause(); // saves the previous document's position
   saveProgress(true);
+  voicePreparation?.abort();
+  const epoch = ++documentEpoch;
+  const text = normalize(originalText);
   const doc = buildDoc(text);
   if (!doc.words.length) {
     toast('That text has no words to read.');
     return;
   }
-  current = { meta, doc };
+  current = { meta, doc, text };
+  fullNarration = null;
+  selectedPassage = null;
+  updateSelection();
+  immersive.load(doc, text);
   showReader();
   lastSaved = meta.position;
   el.title.textContent = meta.title;
   document.title = `${meta.title} · Speed Reader`;
   el.scrub.max = Math.max(0, doc.words.length - 1);
   el.play.disabled = false;
-  player.load(doc, Math.min(meta.position || 0, doc.words.length - 1));
+  $('listen-title').textContent = meta.title;
+  player.load(doc, text, Math.min(meta.position || 0, doc.words.length - 1));
+  populateSections();
+  updateBookmark();
+  applyMode();
   prefs.lastDocId = meta.id;
   store.savePrefs(prefs);
+  setMediaMetadata();
+  try {
+    const saved = await store.getAudio(meta.id);
+    if (epoch !== documentEpoch) return;
+    if (saved) {
+      fullNarration = saved;
+      if (audioCompatible(saved)) player.attachAudio(saved);
+    }
+  } catch { toast('Saved audio could not be opened. You can prepare it again.'); }
+  updateNarrationUI();
 }
 
-async function openText({ title, text, source, url = '' }) {
+async function openText({ title, text: originalText, source, url = '', sections = [], metadata = {}, warnings = [] }, { guard = () => true } = {}) {
+  const text = normalize(originalText);
   const words = buildDoc(text).words.length;
   if (!words) throw new Error('No words found.');
   const id = store.docId({ url, text });
-  const meta = await store.saveDoc({ id, title: title || 'Untitled', source, url, text, wordCount: words });
-  loadDocument(meta, text);
+  if (!guard()) throw new DOMException('Canceled','AbortError');
+  const meta = await store.saveDoc({ id, title: typeof title === 'string' && title.trim() ? title : 'Untitled',
+    source: typeof source === 'string' ? source : 'import', url: typeof url === 'string' ? url : '', text, wordCount: words, sections, metadata });
+  if (!guard()) throw new DOMException('Canceled','AbortError');
+  await loadDocument(meta, text);
+  if (!guard()) throw new DOMException('Canceled','AbortError');
   if (meta.position > 0) toast(`Resuming at word ${(meta.position + 1).toLocaleString()}.`);
+  return { meta, warnings: Array.isArray(warnings) ? warnings : [] };
 }
 
 async function openStored(id) {
+  importController?.abort();
   const saved = await store.getDoc(id);
   if (!saved) return false;
-  loadDocument(saved.meta, saved.text);
+  await loadDocument(saved.meta, saved.text);
   return true;
 }
 
 async function runImport(task, label) {
+  importController?.abort();
+  const controller = importController = new AbortController();
+  $('btn-cancel-import').hidden = false;
+  $('import-progress').textContent = `${label}…`;
   toast(`${label}…`, 60000);
   try {
-    await openText(await task());
-    toast('Ready. Tap play or press space.');
+    const result = await task({ signal: controller.signal, ocr: $('pdf-ocr').checked,
+      onProgress: (message) => { $('import-progress').textContent = message; } });
+    if (controller.signal.aborted) throw new DOMException('Canceled','AbortError');
+    const guard = () => importController === controller && !controller.signal.aborted;
+    const { meta, warnings } = await openText(result, { guard });
+    if (!guard() || current?.meta.id !== meta.id) throw new DOMException('Canceled','AbortError');
+    if (result.audioManifest) {
+      if (result.readingPrefs) {
+        const imported = store.sanitizePrefs({ ...prefs, ...result.readingPrefs });
+        for (const key of ['highlightColor','highlightStyle','highlightOpacity']) prefs[key] = imported[key];
+        applyAppearance();
+      }
+      fullNarration = result.audioManifest;
+      prefs.voiceEngine = 'saved'; player.setEngine('saved'); player.attachAudio(fullNarration); setSpeech(true); setMode('immersive');
+      updateNarrationUI();
+      try {
+        const persistent = await store.saveAudio(meta.id, result.audioManifest);
+        if (!guard()) throw new DOMException('Canceled','AbortError');
+        if (!persistent) warnings.push('Audio is ready for this session. Keep your reading package to restore it.');
+      } catch (error) {
+        if (error.name === 'AbortError') throw error;
+        warnings.push('Device storage is full. Audio works for this session; keep your reading package.');
+      }
+    }
+    toast(warnings?.length ? warnings.join(' ') : 'Ready. Tap play or press space.', warnings?.length ? 9000 : 3000);
     return true;
   } catch (err) {
-    console.error(err);
+    if (importController !== controller) return false;
+    if (err.name === 'AbortError') { toast('Import canceled.'); return false; }
     toast(err.message || String(err), 6000);
+    $('import-progress').textContent = err.message || String(err);
     return false;
-  }
+  } finally { if (importController === controller) { importController = null; $('btn-cancel-import').hidden = true; } }
 }
 
 // ---------------------------------------------------------------- dialogs
@@ -252,6 +361,7 @@ async function runImport(task, label) {
 const dlgImport = $('dlg-import');
 const dlgLibrary = $('dlg-library');
 const dlgSettings = $('dlg-settings');
+const dlgNarration = $('dlg-narration');
 
 function openDialog(d) {
   player.pause();
@@ -259,7 +369,7 @@ function openDialog(d) {
 }
 
 // Close when tapping the backdrop.
-for (const d of [dlgImport, dlgLibrary, dlgSettings]) {
+for (const d of [dlgImport, dlgLibrary, dlgSettings, dlgNarration]) {
   d.addEventListener('click', (e) => {
     if (e.target === d) d.close();
   });
@@ -280,6 +390,12 @@ $('btn-reader-home').addEventListener('click', () => {
 $('btn-settings').addEventListener('click', () => {
   populateVoices();
   openDialog(dlgSettings);
+});
+$('btn-cancel-import').addEventListener('click', () => importController?.abort());
+$('home-read-along').addEventListener('click', async () => {
+  setMode('immersive');
+  setSpeech(true);
+  await runImport(async () => ({ title: 'Sample: how this works', text: SAMPLE, source: 'sample' }), 'Loading');
 });
 $('btn-library').addEventListener('click', async () => {
   await renderLibrary();
@@ -315,7 +431,7 @@ $('btn-sample').addEventListener('click', async () => {
 $('file-input').addEventListener('change', async (e) => {
   const file = e.target.files[0];
   e.target.value = '';
-  if (file && (await runImport(() => importFile(file), `Reading ${file.name}`))) dlgImport.close();
+  if (file && (await openFile(file))) dlgImport.close();
 });
 
 // Drag and drop anywhere.
@@ -343,8 +459,18 @@ window.addEventListener('drop', async (e) => {
   dragDepth = 0;
   dropOverlay.classList.remove('show');
   const file = e.dataTransfer.files[0];
-  if (file && (await runImport(() => importFile(file), `Reading ${file.name}`)) && dlgImport.open) dlgImport.close();
+  if (file && (await openFile(file)) && dlgImport.open) dlgImport.close();
 });
+
+async function openFile(file) {
+  if (!/\.(readalong|json)$/i.test(file.name)) return runImport((options) => importFile(file, options), `Reading ${file.name}`);
+  return runImport(async ({ signal }) => {
+    const pack = await importAudioPackage(file);
+    if (signal.aborted) throw new DOMException('Canceled','AbortError');
+    return { ...pack.metadata, title: pack.metadata.title || file.name.replace(/\.[^.]+$/, ''), text: pack.text,
+      source: 'audio package', audioManifest: pack.manifest, readingPrefs: pack.metadata.readingPrefs };
+  }, `Opening ${file.name}`);
+}
 
 // Bookmarklet.
 const bmHref = bookmarkletHref(appUrl());
@@ -400,7 +526,15 @@ async function renderLibrary() {
         await store.deleteDoc(d.id);
         if (current?.meta.id === d.id) {
           player.pause();
+          voicePreparation?.abort();
+          documentEpoch++;
+          fullNarration = null;
+          player.unload();
+          immersive.clear();
           current = null;
+          clearTimeout(saveTimer); saveTimer = 0;
+          prefs.lastDocId = '';
+          store.savePrefs(prefs);
           el.title.textContent = 'Speed Reader';
           el.play.disabled = true;
           el.scrub.max = 0;
@@ -408,6 +542,8 @@ async function renderLibrary() {
           el.time.textContent = '';
           el.context.classList.remove('show');
           showPlaceholder('Tap + to import something to read');
+          if ('mediaSession' in navigator) navigator.mediaSession.metadata = null;
+          showLanding();
         }
         renderLibrary();
       });
@@ -426,9 +562,34 @@ function applyAppearance() {
   document.querySelector(`input[name=accent][value=${prefs.accent}]`).checked = true;
   document.querySelector(`input[name=font][value=${prefs.font}]`).checked = true;
   $('size').value = prefs.size;
+  immersive.setPrefs(prefs);
+  highlightPreview.setPrefs({ ...prefs, fontSize: 21, follow: false });
+  for (const [id, key] of Object.entries({ 'highlight-style': 'highlightStyle', 'highlight-opacity': 'highlightOpacity', 'text-size': 'fontSize', 'line-height': 'lineHeight' })) $(id).value = prefs[key];
+  $('sentence-highlight').checked = prefs.sentenceHighlight;
+  $('auto-follow').checked = prefs.follow;
+  document.querySelectorAll('.color-swatch').forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.color === prefs.highlightColor)));
   fontSpec = '';
   if (current) render(player.index);
 }
+
+for (const [name, color] of Object.entries(HIGHLIGHT_COLORS)) {
+  const button = document.createElement('button');
+  button.className = 'color-swatch';
+  button.dataset.color = name;
+  button.style.background = `rgb(${color.rgb})`;
+  button.title = color.label;
+  button.setAttribute('aria-label', `${color.label} highlight`);
+  button.addEventListener('click', () => { prefs.highlightColor = name; store.savePrefs(prefs); applyAppearance(); });
+  $('highlight-colors').append(button);
+}
+for (const [id, key] of Object.entries({ 'highlight-style': 'highlightStyle', 'highlight-opacity': 'highlightOpacity', 'text-size': 'fontSize', 'line-height': 'lineHeight', 'sentence-highlight': 'sentenceHighlight', 'auto-follow': 'follow' })) {
+  $(id).addEventListener('input', (event) => {
+    prefs[key] = event.target.type === 'checkbox' ? event.target.checked : (event.target.type === 'range' ? Number(event.target.value) : event.target.value);
+    store.savePrefs(prefs);
+    applyAppearance();
+  });
+}
+$('btn-reader-theme').addEventListener('click', () => $('home-theme').click());
 
 document.querySelectorAll('input[name=accent], input[name=font]').forEach((r) =>
   r.addEventListener('change', () => {
@@ -480,6 +641,8 @@ $('btn-test-voice').addEventListener('click', () => {
   unlockAudio();
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance('This is how the reader will sound at your current speed.');
+  testingDeviceVoice = true;
+  u.onend = u.onerror = () => { testingDeviceVoice = false; };
   const v = pickVoice(prefs.voiceURI);
   if (v) {
     u.voice = v;
@@ -496,7 +659,7 @@ $('btn-test-voice').addEventListener('click', () => {
 document.addEventListener(
   'click',
   (e) => {
-    if (!document.body.classList.contains('reading')) return;
+    if (!document.body.classList.contains('reading') || prefs.mode !== 'rsvp') return;
     e.preventDefault();
     e.stopPropagation();
     player.pause();
@@ -504,39 +667,45 @@ document.addEventListener(
   true,
 );
 
-el.play.addEventListener('click', () => player.toggle());
-el.reader.addEventListener('click', () => current && player.toggle());
+function togglePlayback() {
+  if (!current) return;
+  if (prefs.mode === 'rsvp' && prefs.speech && hasSentenceAudio()) setSpeech(true);
+  if (prefs.mode === 'listen' && !prefs.speech) setSpeech(true);
+  if (prefs.speech && prefs.voiceEngine !== 'device' && !player.manifest) { updateNarrationUI(); openDialog(dlgNarration); return; }
+  unlockAudio();
+  stopPreview();
+  player.toggle();
+}
+el.play.addEventListener('click', togglePlayback);
+el.reader.addEventListener('click', togglePlayback);
 el.reader.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     e.preventDefault();
-    player.toggle();
+    togglePlayback();
   }
 });
-$('btn-back').addEventListener('click', () => player.skip(-10));
-$('btn-fwd').addEventListener('click', () => player.skip(10));
+$('btn-back').addEventListener('click', () => prefs.mode === 'listen' ? player.skipSeconds(-15) : player.skip(-10));
+$('btn-fwd').addEventListener('click', () => prefs.mode === 'listen' ? player.skipSeconds(15) : player.skip(10));
 
 // While the thumb is held, don't move it from under the finger.
 el.scrub.addEventListener('pointerdown', () => (dragging = true));
 for (const type of ['pointerup', 'pointercancel', 'change']) {
   el.scrub.addEventListener(type, () => (dragging = false));
 }
-el.scrub.addEventListener('input', () => player.seek(Number(el.scrub.value), { debounceSpeech: true }));
+el.scrub.addEventListener('input', () => { clearPassage(); player.seek(Number(el.scrub.value), { debounceSpeech: true }); });
 el.scrub.addEventListener('change', () => saveProgress(true));
 
 el.wpm.addEventListener('input', () => setWpm(Number(el.wpm.value)));
 $('wpm-down').addEventListener('click', () => setWpm(player.wpm - 25));
 $('wpm-up').addEventListener('click', () => setWpm(player.wpm + 25));
 
-el.voice.addEventListener('click', () => {
-  if (!speechSupported()) return;
-  if (!player.voice) player.voice = pickVoice(prefs.voiceURI);
-  const on = !player.speech;
-  player.setSpeech(on);
-  prefs.speech = on;
+el.voice.addEventListener('click', () => setSpeech(!prefs.speech));
+$('speech-rate').addEventListener('input', (event) => {
+  prefs.speechRate = Number(event.target.value);
+  player.setRate(prefs.speechRate);
+  $('speech-rate-label').textContent = `${player.rate.toFixed(2)}×`;
   store.savePrefs(prefs);
-  el.voice.setAttribute('aria-pressed', String(on));
   updateStatus();
-  if (current) updateLabels(player.index);
 });
 
 document.addEventListener('keydown', (e) => {
@@ -550,14 +719,15 @@ document.addEventListener('keydown', (e) => {
   if (e.key === ' ' && t.matches?.('button, summary, a')) return;
   if (e.key.startsWith('Arrow') && t.matches?.('input[type=range]')) return;
   const keys = {
-    ' ': () => player.toggle(),
+    ' ': togglePlayback,
     ArrowLeft: () => player.skip(-10),
     ArrowRight: () => player.skip(10),
-    ArrowUp: () => setWpm(player.wpm + 25),
-    ArrowDown: () => setWpm(player.wpm - 25),
+    ArrowUp: () => adjustSpeed(1),
+    ArrowDown: () => adjustSpeed(-1),
   };
   const fn = keys[e.key];
   if (!fn || !current) return;
+  if (prefs.mode === 'immersive' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) return;
   e.preventDefault();
   fn();
 });
@@ -573,7 +743,7 @@ document.addEventListener('visibilitychange', () => {
   }
   if (player.playing) requestWakeLock();
   // iOS can wedge the speech queue while the page is in the background.
-  if (speechSupported()) {
+  if (speechSupported() && !player.usesAudio) {
     if (player.playing && player.speech) player.seek(player.index);
     else if (!player.playing) speechSynthesis.cancel();
   }
@@ -640,12 +810,347 @@ function receiveFromBookmarklet() {
   });
 }
 
+// ---------------------------------------------------------------- reading modes and passages
+
+function setSpeech(on) {
+  if (on && prefs.voiceEngine === 'device' && !speechSupported()) { toast('Choose a natural voice in Voice & audio.'); openDialog(dlgNarration); return; }
+  if (!player.voice) player.voice = pickVoice(prefs.voiceURI);
+  player.setSpeech(on);
+  prefs.speech = !!on;
+  if (on && prefs.mode === 'rsvp' && hasSentenceAudio()) {
+    prefs.mode = 'immersive';
+    toast('This narration follows sentences. Read along shows the complete spoken passage.', 5000);
+  }
+  store.savePrefs(prefs);
+  applyMode();
+  updateNarrationUI();
+  updateStatus();
+  if (current) render(player.index);
+}
+function hasSentenceAudio() { return player.manifest?.chunks.some((chunk) => chunk.timing === 'sentence'); }
+function setMode(mode) {
+  prefs.mode = mode;
+  if (mode === 'rsvp' && prefs.speech && hasSentenceAudio()) {
+    setSpeech(false);
+    toast('One-word reading uses the WPM slider. Use Read along or Listen for this saved narration.', 5000);
+  }
+  if (mode === 'listen') setSpeech(true);
+  store.savePrefs(prefs);
+  applyMode();
+  if (current) render(player.index);
+}
+function applyMode() {
+  document.body.dataset.readingMode = prefs.mode;
+  el.reader.hidden = prefs.mode !== 'rsvp';
+  el.context.hidden = prefs.mode !== 'rsvp';
+  $('immersive-reader').hidden = prefs.mode !== 'immersive';
+  $('listen-view').hidden = prefs.mode !== 'listen';
+  $('btn-follow').hidden = prefs.mode !== 'immersive';
+  $('rsvp-speed').hidden = prefs.speech;
+  $('speech-speed').hidden = !prefs.speech;
+  el.voice.setAttribute('aria-pressed', String(prefs.speech));
+  for (const button of document.querySelectorAll('[data-mode]')) button.setAttribute('aria-pressed', String(button.dataset.mode === prefs.mode));
+  for (const [id, direction] of [['btn-back','Back'],['btn-fwd','Forward']]) {
+    const button = $(id), amount = prefs.mode === 'listen' ? 15 : 10;
+    button.querySelector('.sub').textContent = amount;
+    button.setAttribute('aria-label', `${direction} ${amount} ${prefs.mode === 'listen' ? 'seconds' : 'words'}`);
+  }
+  updateSelection();
+  fontSpec = '';
+}
+for (const button of document.querySelectorAll('[data-mode]')) button.addEventListener('click', () => setMode(button.dataset.mode));
+$('btn-follow').addEventListener('click', () => {
+  prefs.follow = true; store.savePrefs(prefs); immersive.resumeFollow();
+  $('btn-follow').textContent = 'Following text'; $('btn-follow').setAttribute('aria-pressed','true');
+});
+function adjustSpeed(direction) {
+  if (!prefs.speech) { setWpm(player.wpm + direction * 25); return; }
+  $('speech-rate').value = Math.max(.5, Math.min(3, player.rate + direction * .1));
+  $('speech-rate').dispatchEvent(new Event('input'));
+}
+function updateSelection() {
+  $('selection-toolbar').hidden = !selectedPassage || prefs.mode !== 'immersive';
+  if (selectedPassage) $('selection-label').textContent = `${selectedPassage.end - selectedPassage.start} words selected`;
+}
+function clearPassage() {
+  if (player.manifest && player.manifest !== fullNarration) {
+    if (fullNarration && audioCompatible(fullNarration)) player.attachAudio(fullNarration);
+    else player.removeAudio();
+  }
+  player.cancelRange();
+  selectedPassage = null;
+  window.getSelection()?.removeAllRanges();
+  updateSelection();
+}
+$('btn-clear-selection').addEventListener('click', clearPassage);
+$('btn-read-selection').addEventListener('click', async () => {
+  const range = selectedPassage;
+  if (!current || !range) return;
+  setSpeech(true);
+  try {
+    if (prefs.voiceEngine !== 'device' && !player.manifest) {
+      if (!(await prepareAudio({ from: range.start, to: range.end }, { save: false, closeAfter: true }))) return;
+    }
+    try { player.setRange(range.start, range.end); }
+    catch (error) {
+      if (!['browser','local'].includes(prefs.voiceEngine)) throw error;
+      if (!(await prepareAudio({ from: range.start, to: range.end }, { save: false, closeAfter: true }))) return;
+      player.setRange(range.start, range.end);
+    }
+    player.play();
+  } catch (error) { toast(error.message, 6000); }
+});
+$('btn-read-from').addEventListener('click', () => {
+  if (!selectedPassage) return;
+  const start = selectedPassage.start;
+  clearPassage(); setSpeech(true); player.seek(start); togglePlayback();
+});
+function populateSections() {
+  const select = $('chapter-select');
+  const sections = current?.meta.sections || [];
+  select.hidden = sections.length < 2;
+  select.replaceChildren(...sections.map((section,i) => Object.assign(document.createElement('option'), { value: String(i), textContent: section.title || `Section ${i + 1}` })));
+}
+function sectionAt(index) {
+  const offset = current?.doc.words[index]?.s ?? 0;
+  return (current?.meta.sections || []).findIndex((section) => offset >= section.start && offset < section.end);
+}
+$('chapter-select').addEventListener('change', (event) => {
+  const section = current?.meta.sections?.[Number(event.target.value)];
+  if (section) { clearPassage(); player.seek(wordAtOffset(current.doc.words, section.start)); immersive.resumeFollow(); }
+});
+function updateBookmark() { $('btn-go-bookmark').hidden = !current || !Number.isInteger(prefs.bookmarks?.[current.meta.id]); }
+$('btn-bookmark').addEventListener('click', () => {
+  if (!current) return;
+  prefs.bookmarks = { ...(prefs.bookmarks || {}), [current.meta.id]: player.index };
+  store.savePrefs(prefs); updateBookmark(); toast('Your place is bookmarked on this device.');
+});
+$('btn-go-bookmark').addEventListener('click', () => {
+  const index = prefs.bookmarks?.[current?.meta.id];
+  if (Number.isInteger(index)) { clearPassage(); player.seek(index); immersive.resumeFollow(); }
+});
+
+// ---------------------------------------------------------------- natural narration and saved audio
+
+function audioCompatible(manifest) {
+  return prefs.voiceEngine === 'saved' || (prefs.voiceEngine === manifest.engine && prefs.naturalVoice === manifest.voice);
+}
+function updateNarrationUI() {
+  $('voice-engine').value = prefs.voiceEngine;
+  $('natural-voice').value = prefs.naturalVoice;
+  $('local-endpoint').value = prefs.localEndpoint;
+  const natural = ['browser','local'].includes(prefs.voiceEngine);
+  $('natural-options').hidden = !natural;
+  $('prepare-scope-options').hidden = !natural;
+  $('prepare-scope').querySelector('[value=section]').disabled = !current?.meta.sections?.length;
+  $('prepare-scope').querySelector('[value=selection]').disabled = !selectedPassage;
+  for (const id of ['voice-engine','natural-voice','local-endpoint','local-token','prepare-scope']) $(id).disabled = !!voicePreparation;
+  $('local-options').hidden = prefs.voiceEngine !== 'local';
+  $('btn-prepare-audio').hidden = !natural;
+  $('btn-prepare-audio').disabled = !current || !!voicePreparation;
+  $('btn-preview-natural').hidden = prefs.voiceEngine === 'saved';
+  $('btn-preview-natural').disabled = !!voicePreparation;
+  $('saved-audio-options').hidden = !fullNarration;
+  const hints = {
+    device: 'Free and ready immediately. Download Enhanced or Premium device voices for a more natural sound. Word tracking uses voice boundaries when available, with an estimate otherwise.',
+    browser: 'Natural English narration runs here. The first use downloads a large free voice model (about 90 MB plus runtime). Preparation can be slow on phones. Highlighting follows sentences. Your text stays on this device.',
+    local: 'Generate natural English audio on your Mac with the free Kokoro helper. Matching word timings drive highlights; passages with different spoken tokens use sentence highlights. Import the saved audio on your phone.',
+    saved: fullNarration ? 'Use the narration already saved with this document. No voice service or model is needed for playback.' : 'Import a reading package or prepare this document to add saved narration.',
+  };
+  $('engine-hint').textContent = hints[prefs.voiceEngine];
+  $('audio-summary').textContent = player.usesAudio ? `${player.manifest.voice || 'Saved voice'} · ${player.audio.timing === 'word' ? 'word' : 'sentence'} highlights · saved audio` : (prefs.voiceEngine === 'device' ? "Your device's voice · no account needed" : 'Natural audio · prepare in Voice & audio');
+  if (fullNarration) {
+    const timed = fullNarration.chunks.every((chunk) => chunk.timing === 'word');
+    const first = fullNarration.chunks[0].from, end = fullNarration.chunks.at(-1).to;
+    const coverage = first === 0 && end === current?.doc.words.length ? 'Whole document' : `Words ${first + 1}–${end}`;
+    $('saved-audio-detail').textContent = `${fullNarration.voice || 'Saved voice'} · ${coverage} · ${timed ? 'word highlights' : 'sentence highlights where word timing is unavailable'}. Saved on this device.`;
+  }
+}
+function showNarration() { updateNarrationUI(); openDialog(dlgNarration); }
+for (const id of ['btn-narration','btn-listen-prepare']) $(id).addEventListener('click', showNarration);
+$('btn-natural-settings').addEventListener('click', () => { dlgSettings.close(); showNarration(); });
+$('natural-voice').replaceChildren(...NATURAL_VOICES.map((voice) => Object.assign(document.createElement('option'), { value: voice.id, textContent: voice.name })));
+$('voice-engine').addEventListener('change', (event) => {
+  prefs.voiceEngine = event.target.value;
+  player.setEngine(prefs.voiceEngine);
+  if (fullNarration && audioCompatible(fullNarration)) player.attachAudio(fullNarration);
+  else player.removeAudio();
+  setSpeech(true);
+  updateNarrationUI();
+});
+$('natural-voice').addEventListener('change', (event) => {
+  prefs.naturalVoice = event.target.value; store.savePrefs(prefs);
+  if (!fullNarration || !audioCompatible(fullNarration)) player.removeAudio();
+  updateNarrationUI();
+});
+$('local-endpoint').addEventListener('change', (event) => { prefs.localEndpoint = event.target.value.trim() || '/local-voice'; store.savePrefs(prefs); });
+function preparationProgress(progress) {
+  const meter = $('audio-progress');
+  if (Number.isFinite(progress.progress)) { meter.max = 100; meter.value = progress.progress; } else meter.removeAttribute('value');
+  $('audio-progress-label').textContent = progress.phase === 'generating' ? `Preparing passage ${progress.completed + 1} of ${progress.total}…` : progress.phase === 'ready' ? 'Your narration is ready.' : `Downloading the voice model${progress.file ? ` · ${progress.file}` : ''}…`;
+}
+async function prepareAudio(range = {}, { save = true, closeAfter = false } = {}) {
+  if (!current || voicePreparation) return false;
+  const source = current, epoch = documentEpoch;
+  if (!['browser','local'].includes(prefs.voiceEngine)) { showNarration(); return false; }
+  player.pause();
+  stopPreview();
+  const controller = voicePreparation = new AbortController();
+  $('preparation-status').hidden = false;
+  updateNarrationUI();
+  if (!dlgNarration.open) openDialog(dlgNarration);
+  try {
+    const manifest = await prepareNaturalVoice({ doc: source.doc, text: source.text, engine: prefs.voiceEngine,
+      voice: prefs.naturalVoice, endpoint: prefs.localEndpoint, token: $('local-token').value,
+      signal: controller.signal, onProgress: preparationProgress, ...range });
+    if (controller.signal.aborted || epoch !== documentEpoch) return false;
+    player.attachAudio(manifest);
+    if (save) {
+      fullNarration = manifest;
+      try {
+        const persistent = await store.saveAudio(source.meta.id, manifest);
+        if (!persistent) toast('Audio is ready for this session. Save a reading package to keep it.', 6000);
+      } catch { toast('Device storage is full. Save a reading package to keep this narration.', 6000); }
+    }
+    setSpeech(true);
+    $('audio-progress-label').textContent = closeAfter ? 'Your selected passage is ready.' : 'Ready. Close this panel and tap play.';
+    if (closeAfter) dlgNarration.close();
+    return true;
+  } catch (error) {
+    const message = error.name === 'AbortError' ? 'Voice preparation canceled.' : error.message || 'Voice preparation failed.';
+    $('audio-progress-label').textContent = message;
+    toast(message, 7000); return false;
+  } finally {
+    if (voicePreparation === controller) voicePreparation = null;
+    updateNarrationUI();
+  }
+}
+$('btn-prepare-audio').addEventListener('click', () => {
+  if (!current) return;
+  const scope = $('prepare-scope').value;
+  if (scope === 'selection') {
+    if (!selectedPassage) return toast('Select a passage in Read along mode first.');
+    return prepareAudio({ from: selectedPassage.start, to: selectedPassage.end });
+  }
+  if (scope === 'section') {
+    const section = current.meta.sections?.[Math.max(0,sectionAt(player.index))];
+    if (section) {
+      const from = current.doc.words.findIndex((word) => word.s >= section.start);
+      const last = current.doc.words.findIndex((word) => word.s >= section.end);
+      return prepareAudio({ from: Math.max(0,from), to: last < 0 ? current.doc.words.length : last });
+    }
+  }
+  return prepareAudio();
+});
+$('btn-cancel-audio').addEventListener('click', () => voicePreparation?.abort());
+let previewNarrator = null;
+function stopPreview() {
+  previewNarrator?.pause();
+  if (testingDeviceVoice) { speechSynthesis.cancel(); testingDeviceVoice = false; }
+}
+$('btn-preview-natural').addEventListener('click', async () => {
+  if (prefs.voiceEngine === 'device') { $('btn-test-voice').click(); return; }
+  if (voicePreparation) return;
+  const controller = voicePreparation = new AbortController();
+  $('preparation-status').hidden = false; updateNarrationUI();
+  previewNarrator?.dispose();
+  try {
+    const text = 'Take your time. A good sentence is worth listening to.';
+    const doc = buildDoc(text);
+    const manifest = await prepareNaturalVoice({ doc, text, engine: prefs.voiceEngine, voice: prefs.naturalVoice,
+      endpoint: prefs.localEndpoint, token: $('local-token').value, signal: controller.signal, onProgress: preparationProgress });
+    previewNarrator = new NativeAudioNarrator({ onError: (error) => toast(String(error)), onState: (playing) => { if (!playing) $('audio-progress-label').textContent = 'Preview finished.'; } });
+    previewNarrator.load(doc, text, manifest); previewNarrator.setRate(prefs.speechRate);
+    await previewNarrator.play();
+    $('audio-progress-label').textContent = 'Preview ready. If sound was blocked, prepare a document and tap play.';
+  } catch (error) { $('audio-progress-label').textContent = error.name === 'AbortError' ? 'Preview canceled.' : error.message; }
+  finally { if (voicePreparation === controller) voicePreparation = null; updateNarrationUI(); }
+});
+dlgNarration.addEventListener('close', stopPreview);
+dlgSettings.addEventListener('close', stopPreview);
+$('btn-use-audio').addEventListener('click', () => {
+  if (!fullNarration) return;
+  prefs.voiceEngine = 'saved'; player.setEngine('saved'); player.attachAudio(fullNarration); setSpeech(true); dlgNarration.close();
+});
+function download(blob, name) {
+  const url = URL.createObjectURL(blob), link = Object.assign(document.createElement('a'), { href: url, download: name });
+  link.click(); setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+function filename() { return (current?.meta.title || 'reading').replace(/[^\p{L}\p{N} ._-]/gu,'').slice(0,90) || 'reading'; }
+$('btn-export-package').addEventListener('click', async () => {
+  try {
+    if (!fullNarration || !current) return;
+    const metadata = { title: current.meta.title, source: current.meta.source, sections: current.meta.sections, metadata: current.meta.metadata,
+      readingPrefs: { highlightColor: prefs.highlightColor, highlightStyle: prefs.highlightStyle, highlightOpacity: prefs.highlightOpacity } };
+    const first = fullNarration.chunks[0].from, end = fullNarration.chunks.at(-1).to;
+    let manifest = fullNarration;
+    if (first > 0 || end < current.doc.words.length) {
+      const startOffset = current.doc.words[first].s, endOffset = current.doc.words[end - 1].s + current.doc.words[end - 1].t.length;
+      manifest = { ...fullNarration, text: current.text.slice(startOffset,endOffset), chunks: fullNarration.chunks.map((chunk) => ({ ...chunk,
+        from: chunk.from - first, to: chunk.to - first, timings: chunk.timings.map((timing) => ({ ...timing,index: timing.index - first })) })) };
+      metadata.sections = (current.meta.sections || []).filter((section) => section.end > startOffset && section.start < endOffset)
+        .map((section) => ({ ...section,start: Math.max(0,section.start - startOffset),end: Math.min(endOffset,section.end) - startOffset }));
+      metadata.title += ' · prepared passage';
+    }
+    download(await serializeAudioPackage(manifest, metadata), `${filename()}.readalong`);
+  } catch (error) { toast(error.message, 6000); }
+});
+$('btn-export-audio').addEventListener('click', async () => {
+  try {
+    if (!fullNarration) return;
+    const audio = await exportNarrationAudio(fullNarration);
+    download(audio, `${filename()}.${audio.type.includes('wav') ? 'wav' : 'mp3'}`);
+    toast('Audiobook downloaded. Add it to Apple Books on your Mac and sync it to your iPhone.', 8000);
+  } catch (error) { toast(error.message, 6000); }
+});
+$('btn-delete-audio').addEventListener('click', async () => {
+  if (!current) return;
+  voicePreparation?.abort(); player.removeAudio(); fullNarration = null;
+  await store.deleteAudio(current.meta.id); updateNarrationUI(); toast('Saved audio removed from this device.');
+});
+
+// Ordinary audio participates in system playback controls. Actual vehicle
+// behavior depends on Safari/iOS; this is not a native CarPlay application.
+function setMediaMetadata() {
+  if (!current || !('mediaSession' in navigator) || typeof MediaMetadata === 'undefined') return;
+  navigator.mediaSession.metadata = new MediaMetadata({ title: current.meta.title, artist: current.meta.metadata?.author || 'Sajan Acharya Reader', album: 'Reading library',
+    artwork: [{ src: new URL('icon.svg', location.href).href, sizes: 'any', type: 'image/svg+xml' }] });
+}
+function updateMediaPosition() {
+  if (!player.usesAudio || !navigator.mediaSession?.setPositionState) return;
+  const { duration, currentTime } = player.audio;
+  try { if (duration > 0) navigator.mediaSession.setPositionState({ duration, playbackRate: player.rate, position: Math.min(currentTime,duration) }); } catch { /* Some OS versions expose only transport controls. */ }
+}
+function setupMediaControls() {
+  if (!('mediaSession' in navigator)) return;
+  const handlers = {
+    play: () => player.play(), pause: () => player.pause(), stop: () => player.pause(),
+    seekbackward: (event) => player.skipSeconds(-(event.seekOffset || 15)),
+    seekforward: (event) => player.skipSeconds(event.seekOffset || 15),
+    seekto: (event) => { if (player.usesAudio && Number.isFinite(event.seekTime)) player.skipSeconds(event.seekTime - player.audio.currentTime); },
+    previoustrack: () => skipSection(-1), nexttrack: () => skipSection(1),
+  };
+  for (const [action,handler] of Object.entries(handlers)) { try { navigator.mediaSession.setActionHandler(action,handler); } catch { /* Unsupported action. */ } }
+}
+function skipSection(delta) {
+  if (!current) return;
+  const sections = current.meta.sections || [];
+  const section = sections[Math.max(0,Math.min(sections.length - 1, sectionAt(player.index) + delta))];
+  clearPassage();
+  if (section) player.seek(wordAtOffset(current.doc.words,section.start));
+  else player.skipSeconds(delta * 15);
+}
+
 // ---------------------------------------------------------------- start
 
 async function init() {
   claimPlaybackAudio();
   applyAppearance();
   player.wpm = Math.min(MAX_WPM, Math.max(MIN_WPM, prefs.wpm));
+  player.setRate(prefs.speechRate);
+  player.setEngine(prefs.voiceEngine);
+  $('speech-rate').value = prefs.speechRate;
+  $('speech-rate-label').textContent = `${prefs.speechRate.toFixed(2)}×`;
   el.wpm.value = player.wpm;
   el.wpmLabel.textContent = `${player.wpm} wpm`;
   el.play.disabled = true;
@@ -655,9 +1160,12 @@ async function init() {
     speechSynthesis.addEventListener?.('voiceschanged', populateVoices);
     player.speech = prefs.speech;
     el.voice.setAttribute('aria-pressed', String(prefs.speech));
-  } else {
-    el.voice.disabled = true;
-    el.voice.title = 'Speech is not supported in this browser';
+  } else if (prefs.voiceEngine !== 'device') player.speech = prefs.speech;
+  applyMode();
+  updateNarrationUI();
+  setupMediaControls();
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || ['localhost','127.0.0.1'].includes(location.hostname))) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
   }
   updateStatus();
 

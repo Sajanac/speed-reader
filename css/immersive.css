@@ -1,0 +1,102 @@
+/* Reading typography and highlights are scoped to the immersive reader. */
+.immersive-reader {
+  --highlight-rgb: 197, 180, 244;
+  --highlight-opacity: .7;
+  --immersive-size: 21px;
+  --immersive-line-height: 1.85;
+  --immersive-ink: var(--text, #eaece9);
+  width: min(100%, 900px);
+  min-height: 180px;
+  height: min(60dvh, 690px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line, #39413e) transparent;
+  border: 1px solid var(--line, #343c38);
+  border-radius: 20px;
+  background: var(--surface, #171b18);
+  color: var(--immersive-ink);
+  padding: clamp(24px, 4vw, 48px) clamp(22px, 5vw, 64px);
+  outline: none;
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
+  -webkit-overflow-scrolling: touch;
+  scroll-padding-block: 30%;
+  contain: layout style;
+}
+.immersive-reader[hidden] { display: none; }
+.immersive-reader:focus-visible { outline: 2px solid var(--accent, #2ec4b6); outline-offset: 4px; }
+.immersive-content {
+  max-width: 68ch;
+  margin: 0 auto;
+  font-family: var(--word-font, var(--font-serif, Georgia, serif));
+  font-size: var(--immersive-size);
+  font-weight: 400;
+  line-height: var(--immersive-line-height);
+  letter-spacing: .004em;
+  overflow-wrap: anywhere;
+  text-align: start;
+  text-rendering: optimizeLegibility;
+}
+.immersive-paragraph {
+  margin: 0 0 1.3em;
+  white-space: pre-wrap;
+  /* Offscreen paragraphs avoid unnecessary layout and painting on long books. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 150px;
+}
+.immersive-paragraph:last-child { margin-bottom: 0; }
+.immersive-paragraph.is-current { content-visibility: visible; }
+.immersive-continuation { margin-bottom: .65em; }
+.immersive-sentence {
+  background: rgba(var(--highlight-rgb), calc(var(--highlight-opacity) * .075));
+  border-radius: 3px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+.immersive-word {
+  color: inherit;
+  background: rgba(var(--highlight-rgb), var(--highlight-opacity));
+  border-radius: 3px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+/* Ink changes only for solid fills; half markers and underlines keep the
+   document's text color, including in dark mode. */
+.immersive-reader[data-highlight-style='full'] .immersive-word,
+.immersive-reader[data-highlight-style='pill'] .immersive-word {
+  color: #202821;
+  background: rgba(var(--highlight-rgb), max(var(--highlight-opacity), .5));
+}
+.immersive-reader[data-highlight-style='full'] .immersive-word { border-radius: 3px; }
+.immersive-reader[data-highlight-style='half'] .immersive-word {
+  background: linear-gradient(to bottom, transparent 53%, rgba(var(--highlight-rgb), var(--highlight-opacity)) 53%, rgba(var(--highlight-rgb), var(--highlight-opacity)) 91%, transparent 91%);
+  border-radius: 0;
+}
+.immersive-reader[data-highlight-style='underline'] .immersive-word {
+  background: none;
+  text-decoration-line: underline;
+  text-decoration-color: rgba(var(--highlight-rgb), var(--highlight-opacity));
+  text-decoration-thickness: .14em;
+  text-underline-offset: .2em;
+  text-decoration-skip-ink: none;
+  border-radius: 0;
+}
+.immersive-reader[data-highlight-style='pill'] .immersive-word {
+  border-radius: .7em;
+  /* An inset shadow gives the pill a little room without moving word layout. */
+  box-shadow: .12em 0 0 rgba(var(--highlight-rgb), max(var(--highlight-opacity), .5)), -.12em 0 0 rgba(var(--highlight-rgb), max(var(--highlight-opacity), .5));
+}
+.immersive-content ::selection { background: rgba(var(--highlight-rgb), .45); color: inherit; }
+@media (max-width: 600px) {
+  .immersive-reader { border-radius: 14px; height: 55dvh; padding: 23px 21px; }
+  .immersive-content { letter-spacing: 0; }
+}
+@media (max-height: 550px) and (orientation: landscape) {
+  .immersive-reader { height: 45dvh; min-height: 120px; padding-block: 16px; }
+}
+@media (forced-colors: active) {
+  .immersive-sentence { background: none; }
+  .immersive-reader[data-highlight-style] .immersive-word { outline: 2px solid Highlight; background: Highlight; color: HighlightText; }
+}

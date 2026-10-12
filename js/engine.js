@@ -19,6 +19,8 @@ export class Player {
     this.wpm = 300;
     this.speech = false;
     this.voice = null;
+    this.speechRate = null;
+    this.range = null;
     this._playing = false;
     this._timer = 0;
     this._restart = 0;
@@ -31,7 +33,8 @@ export class Player {
     };
     speaker.onEnd = () => {
       if (!this._playing) return;
-      this.index = this.length - 1;
+      this.index = this.endIndex - 1;
+      this.onWord(this.index);
       this.pause();
     };
     speaker.onError = (err) => {
@@ -50,19 +53,36 @@ export class Player {
 
   // Speech rate for the current WPM (1.0 is the voice's normal speed).
   get rate() {
-    return clamp(this.wpm / SPEECH_BASE_WPM, 0.1, 10);
+    return this.speechRate ?? clamp(this.wpm / SPEECH_BASE_WPM, 0.1, 10);
   }
+
+  get endIndex() { return this.range?.end ?? this.length; }
+
+  setRate(rate) {
+    this.speechRate = clamp(Number(rate) || 1, 0.5, 3);
+    if (this._playing && this.speech) { this._stop(); this._start(); }
+  }
+
+  setRange(start, end) {
+    this.pause();
+    const from = clamp(Math.round(start), 0, Math.max(0, this.length - 1));
+    this.range = { start: from, end: clamp(Math.round(end), from + 1, this.length) };
+    this.seek(from);
+  }
+
+  cancelRange() { this.range = null; }
 
   load(doc, index = 0) {
     this.pause();
     this.doc = doc;
+    this.range = null;
     this.index = clamp(index | 0, 0, Math.max(0, this.length - 1));
     this.onWord(this.index);
   }
 
   play() {
     if (!this.length || this._playing) return;
-    if (this.index >= this.length - 1) this.index = 0;
+    if (this.index >= this.endIndex - 1) this.index = this.range?.start ?? 0;
     this._playing = true;
     this.onState(true);
     this._start();
@@ -82,7 +102,7 @@ export class Player {
 
   seek(i, { debounceSpeech = false } = {}) {
     if (!this.length) return;
-    this.index = clamp(Math.round(i), 0, this.length - 1);
+    this.index = clamp(Math.round(i), this.range?.start ?? 0, this.endIndex - 1);
     this.onWord(this.index);
     if (!this._playing) return;
     if (this.speech && debounceSpeech) {
@@ -102,7 +122,7 @@ export class Player {
     this.wpm = clamp(Math.round(wpm), MIN_WPM, MAX_WPM);
     // A speech utterance's rate is fixed once it starts, so restart from the
     // current word. Silent mode picks the new speed up on the next word.
-    if (this._playing && this.speech) {
+    if (this._playing && this.speech && this.speechRate === null) {
       clearTimeout(this._restart);
       this._restart = setTimeout(() => {
         if (!this._playing) return;
@@ -130,7 +150,7 @@ export class Player {
   _start() {
     if (this.speech) {
       this.onWord(this.index);
-      this.speaker.start(this.doc.words, this.index, { rate: this.rate, voice: this.voice });
+      this.speaker.start(this.doc.words, this.index, { rate: this.rate, voice: this.voice, end: this.endIndex });
     } else {
       this.onWord(this.index);
       this._due = performance.now();
@@ -151,7 +171,7 @@ export class Player {
     this._due += (60000 / this.wpm) * this.doc.factors[this.index];
     this._timer = setTimeout(() => {
       if (!this._playing) return;
-      if (this.index >= this.length - 1) {
+      if (this.index >= this.endIndex - 1) {
         this.pause();
         return;
       }

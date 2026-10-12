@@ -3,13 +3,16 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="color-scheme" content="dark">
+  <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#0b0c0e">
-  <meta name="description" content="RSVP speed reader with Optimal Recognition Point alignment and read-aloud.">
+  <meta name="description" content="Read articles, PDFs and EPUBs your way: rapid reading, immersive highlighting, and natural narration.">
   <title>Speed Reader</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/landing.css">
+  <link rel="stylesheet" href="css/immersive.css">
+  <link rel="stylesheet" href="css/experience.css">
   <link rel="stylesheet" href="brand/brand.css?v=3">
   <script type="module" src="js/app.js"></script>
 </head>
@@ -40,13 +43,13 @@
     <main>
       <section class="reader-intro"><div class="brand-shell">
         <p class="reader-eyebrow">Reading / Focus / A little more time</p>
-        <h1>Speed Reader.<br>One <span>word</span> at a time.</h1>
-        <div class="reader-intro-bottom"><p>A quiet place for your next article, chapter, or idea. Bring something worth reading, and settle into your own pace.</p><button class="reader-action" data-reader-action="btn-import"><svg aria-hidden="true"><use href="#i-plus"/></svg>Import text</button></div>
+        <h1>Your words.<br>Your <span>pace.</span></h1>
+        <div class="reader-intro-bottom"><p>Read one word at a time, follow a voice through the page, or settle in and listen. A quiet place for articles, PDFs, and books.</p><button class="reader-action" data-reader-action="btn-import"><svg aria-hidden="true"><use href="#i-plus"/></svg>Bring something to read</button></div>
       </div></section>
       <section class="reader-workspace brand-shell" aria-labelledby="reading-heading">
         <div class="reader-workspace-head"><h2 id="reading-heading">Your reading</h2><button class="reader-text-button" data-reader-action="btn-library"><svg aria-hidden="true"><use href="#i-lib"/></svg>Library</button></div>
         <div class="reader-continue" id="reader-continue" hidden><div><p>Pick up where you left off</p><h3 id="resume-title"></h3></div><button class="reader-action" id="home-resume"><svg aria-hidden="true"><use href="#i-play"/></svg>Continue reading</button></div>
-        <div class="reader-options"><button data-reader-action="btn-import"><svg aria-hidden="true"><use href="#i-plus"/></svg>Paste text or open a file</button><button data-reader-action="btn-sample"><svg aria-hidden="true"><use href="#i-play"/></svg>Try a sample</button><button data-reader-action="btn-settings"><svg aria-hidden="true"><use href="#i-gear"/></svg>Reading preferences</button></div>
+        <div class="reader-options"><button data-reader-action="btn-import"><svg aria-hidden="true"><use href="#i-plus"/></svg>Paste text or open a file</button><button id="home-read-along"><svg aria-hidden="true"><use href="#i-voice"/></svg>Try immersive reading</button><button data-reader-action="btn-settings"><svg aria-hidden="true"><use href="#i-gear"/></svg>Make it your own</button></div>
       </section>
     </main>
     <footer class="brand-footer"><div class="brand-shell"><span>Sajan Acharya</span><a href="https://sajanacharya.com/">Medicine, education, and a life in progress.</a></div></footer>
@@ -62,6 +65,32 @@
   </header>
 
   <main class="stage">
+    <div class="reading-toolbar">
+      <div class="mode-switch" role="group" aria-label="Reading mode">
+        <button id="mode-rsvp" data-mode="rsvp" aria-pressed="true">One word</button>
+        <button id="mode-immersive" data-mode="immersive" aria-pressed="false">Read along</button>
+        <button id="mode-listen" data-mode="listen" aria-pressed="false">Listen</button>
+      </div>
+      <div class="reading-actions">
+        <select id="chapter-select" aria-label="Chapter or page" hidden></select>
+        <button class="quiet-btn" id="btn-follow" aria-pressed="true" hidden>Follow text</button>
+        <button class="quiet-btn" id="btn-narration"><svg aria-hidden="true"><use href="#i-voice"/></svg>Voice &amp; audio</button>
+      </div>
+    </div>
+    <div class="immersive-reader" id="immersive-reader" tabindex="0" aria-label="Document text" hidden></div>
+    <div class="selection-toolbar" id="selection-toolbar" hidden aria-label="Selected passage">
+      <span id="selection-label"></span>
+      <button class="btn primary" id="btn-read-selection">Read selection</button>
+      <button class="btn" id="btn-read-from">Read from here</button>
+      <button class="quiet-btn" id="btn-clear-selection" aria-label="Clear selected passage">Clear</button>
+    </div>
+    <section class="listen-view" id="listen-view" hidden aria-label="Listening">
+      <div class="listen-art" aria-hidden="true"><svg><use href="#i-voice"/></svg><span></span><span></span><span></span></div>
+      <p class="eyebrow">A little room to listen</p>
+      <h1 id="listen-title">Your next good read</h1>
+      <p id="listen-context"></p>
+      <button class="quiet-btn" id="btn-listen-prepare">Prepare audio for offline listening</button>
+    </section>
     <div class="reader" id="reader" role="button" tabindex="0" aria-label="Reading area. Tap to play or pause.">
       <div class="guide guide-top" aria-hidden="true"></div>
       <div class="word" id="word" aria-live="off"><span class="w-before" id="w-before"></span><span class="w-pivot" id="w-pivot"></span><span class="w-after" id="w-after"></span></div>
@@ -81,13 +110,14 @@
       <button class="play-btn" id="btn-play" aria-label="Play" title="Play / pause (space)"><svg><use href="#i-play"/></svg></button>
       <button class="icon-btn big" id="btn-fwd" aria-label="Forward 10 words" title="Forward 10 words (→)"><svg><use href="#i-fwd"/></svg><span class="sub">10</span></button>
     </div>
-    <div class="speed">
+    <div class="speed rsvp-speed" id="rsvp-speed">
       <button class="step-btn" id="wpm-down" aria-label="Slower">−</button>
       <input type="range" id="wpm" min="100" max="1000" step="25" value="300" aria-label="Words per minute">
       <button class="step-btn" id="wpm-up" aria-label="Faster">+</button>
       <output id="wpm-label" for="wpm">300 wpm</output>
-      <button class="toggle-btn" id="btn-voice" aria-pressed="false" title="Read aloud with the device voice"><svg><use href="#i-voice"/></svg><span>Read aloud</span></button>
     </div>
+    <div class="speed speech-speed" id="speech-speed" hidden><span class="speed-caption">Voice speed</span><input type="range" id="speech-rate" min="0.5" max="3" step="0.05" value="1" aria-label="Narration speed"><output id="speech-rate-label">1.00×</output></div>
+    <div class="playback-bottom"><button class="toggle-btn" id="btn-voice" aria-pressed="false" title="Read aloud"><svg><use href="#i-voice"/></svg><span>Read aloud</span></button><span id="audio-summary">Your device's voice · no account needed</span><button class="quiet-btn" id="btn-bookmark" title="Save your place">Bookmark</button><button class="quiet-btn" id="btn-go-bookmark" hidden>Return to bookmark</button></div>
   </footer>
 
   <dialog id="dlg-import" aria-labelledby="import-h">
@@ -103,8 +133,11 @@
     </section>
     <section>
       <h3>Open a file</h3>
-      <p class="hint">Plain text, Markdown, HTML, ePub (without DRM), or PDF (with a text layer). You can also drop a file anywhere on this page.</p>
-      <label class="btn file-btn">Choose file<input type="file" id="file-input" accept=".txt,.text,.md,.markdown,.html,.htm,.xhtml,.epub,.pdf,text/plain,text/html,application/epub+zip,application/pdf"></label>
+      <p class="hint">Text, Markdown, HTML, DRM-free EPUB, PDF, or a saved reading package. Files stay on your device.</p>
+      <label class="btn file-btn">Choose file<input type="file" id="file-input" accept=".txt,.text,.md,.markdown,.html,.htm,.xhtml,.epub,.pdf,.readalong,.json,text/plain,text/html,application/epub+zip,application/pdf,application/json"></label>
+      <label class="check-setting"><input type="checkbox" id="pdf-ocr"> Read scanned PDF pages with on-device OCR</label>
+      <p class="hint">English OCR runs on your device. It downloads free recognition tools the first time and can take a few minutes.</p>
+      <p id="import-progress" class="hint" role="status" aria-live="polite"></p><button class="quiet-btn" id="btn-cancel-import" hidden>Cancel import</button>
     </section>
     <section>
       <h3>From a webpage</h3>
@@ -131,6 +164,22 @@
   <dialog id="dlg-settings" aria-labelledby="set-h">
     <form method="dialog" class="dlg-head"><h2 id="set-h">Settings</h2><button class="icon-btn" aria-label="Close"><svg><use href="#i-close"/></svg></button></form>
     <section>
+      <h3>Your reading highlight</h3>
+      <div id="highlight-colors" class="color-swatches" role="group" aria-label="Highlight color"></div>
+      <label class="field-label" for="highlight-style">Style</label>
+      <select id="highlight-style"><option value="half">Half highlight</option><option value="full">Full highlight</option><option value="underline">Underline</option><option value="pill">Rounded highlight</option></select>
+      <label class="field-label" for="highlight-opacity">Highlight strength</label><input type="range" id="highlight-opacity" min="0.15" max="1" step="0.05" value="0.65">
+      <label class="check-setting"><input type="checkbox" id="sentence-highlight" checked> Gently emphasize the current sentence</label>
+      <div class="immersive-reader highlight-preview" id="highlight-preview" aria-label="Highlight preview"></div>
+    </section>
+    <section>
+      <h3>Reading comfort</h3>
+      <label class="field-label" for="text-size">Text size</label><input type="range" id="text-size" min="16" max="34" step="1" value="22">
+      <label class="field-label" for="line-height">Line spacing</label><input type="range" id="line-height" min="1.35" max="2.5" step="0.05" value="1.85">
+      <label class="check-setting"><input type="checkbox" id="auto-follow" checked> Follow the spoken text automatically</label>
+      <button class="quiet-btn" id="btn-reader-theme">Switch reading theme</button>
+    </section>
+    <section>
       <h3>Accent</h3>
       <div class="seg" role="radiogroup">
         <label><input type="radio" name="accent" value="teal"><span>Teal</span></label>
@@ -154,13 +203,29 @@
       <select id="voice-select" aria-label="Voice"></select>
       <div class="row"><button class="btn" id="btn-test-voice">Test voice</button></div>
       <p class="hint"><strong>No sound on iPhone?</strong> Check the volume, and use the reader in a Safari tab (speech is unreliable in Home Screen apps). This page asks iOS to play sound even when the silent switch is on; if you still hear nothing, flip the switch off and try again.</p>
-      <p class="hint" id="voice-hint">In read-aloud mode the voice sets the pace: the WPM control changes its speaking rate. For better voices, download Enhanced or Premium voices in System Settings › Accessibility › Spoken Content (Mac) or Settings › Accessibility › Spoken Content (iPhone/iPad).</p>
+      <p class="hint" id="voice-hint">Voice speed and one-word reading speed are separate. For better device voices, download Enhanced or Premium voices in your device's Accessibility settings.</p>
+      <button class="btn" id="btn-natural-settings">Natural voices &amp; offline audio</button>
     </section>
     <section>
       <h3>Keyboard</h3>
-      <p class="hint">While reading, only the word is shown. Tap anywhere to pause and bring the controls back.</p>
+      <p class="hint">One-word mode keeps the page quiet while playing; tap to pause. Read-along mode keeps the text and controls available.</p>
       <p class="hint">Space: play/pause · ←/→: back/forward 10 words · ↑/↓: speed</p>
     </section>
+  </dialog>
+
+  <dialog id="dlg-narration" aria-labelledby="narration-h">
+    <form method="dialog" class="dlg-head"><h2 id="narration-h">A voice for your reading</h2><button class="icon-btn" aria-label="Close"><svg><use href="#i-close"/></svg></button></form>
+    <section>
+      <label class="field-label" for="voice-engine">Narration</label>
+      <select id="voice-engine"><option value="device">Device voice · ready instantly</option><option value="browser">Natural voice · on this device</option><option value="local">Natural voice · on my Mac</option><option value="saved">Saved narration</option></select>
+      <p class="hint" id="engine-hint"></p>
+      <div id="natural-options" hidden><label class="field-label" for="natural-voice">Natural voice</label><select id="natural-voice"><option value="af_heart">Heart · American English</option><option value="af_bella">Bella · American English</option><option value="af_sarah">Sarah · American English</option><option value="am_michael">Michael · American English</option><option value="am_adam">Adam · American English</option><option value="bf_emma">Emma · British English</option><option value="bm_george">George · British English</option></select></div>
+      <div id="local-options" hidden><label class="field-label" for="local-endpoint">Local voice connection</label><input type="url" id="local-endpoint" placeholder="/local-voice" autocomplete="off"><p class="hint">Use the included Mac helper, or your own HTTPS voice server. <a href="docs/LOCAL_VOICE.md" target="_blank" rel="noopener">Setup instructions</a></p><label class="field-label" for="local-token">Connection token (optional)</label><input type="password" id="local-token" autocomplete="off" placeholder="Kept only for this session"></div>
+      <div id="prepare-scope-options" hidden><label class="field-label" for="prepare-scope">What to prepare</label><select id="prepare-scope"><option value="document">Whole document</option><option value="section">Current chapter or page</option><option value="selection">Selected passage</option></select><p class="hint">For long books, start with a chapter. Preparation takes time and saved audio uses device storage.</p></div>
+      <div class="row"><button class="btn" id="btn-preview-natural">Preview voice</button><button class="btn primary" id="btn-prepare-audio">Prepare audio</button></div>
+      <div class="preparation-status" id="preparation-status" hidden><progress id="audio-progress"></progress><p class="hint" id="audio-progress-label" role="status" aria-live="polite"></p><button class="quiet-btn" id="btn-cancel-audio">Cancel preparation</button></div>
+    </section>
+    <section id="saved-audio-options" hidden><h3>Ready to listen</h3><p class="hint" id="saved-audio-detail"></p><div class="row"><button class="btn primary" id="btn-use-audio">Use saved audio</button><button class="btn" id="btn-export-package">Save reading package</button><button class="btn" id="btn-export-audio">Download audiobook</button><button class="quiet-btn" id="btn-delete-audio">Remove audio</button></div><p class="hint">A reading package keeps your text, narration, and highlights together. Import it on your phone before you leave. Audiobook files also work with Apple Books.</p></section>
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>

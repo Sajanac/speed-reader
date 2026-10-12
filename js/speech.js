@@ -104,15 +104,16 @@ export class Speaker {
 
   // Speak words from `index` onward. Must be called from a user gesture the
   // first time on iOS.
-  start(words, index, { rate, voice }) {
+  start(words, index, { rate, voice, end = words.length }) {
     this.stop();
     unlockAudio();
     // iOS can leave the synthesiser paused after an interruption.
     if (speechSynthesis.paused) speechSynthesis.resume();
-    this._words = words;
+    this._words = end < words.length ? words.slice(0, end) : words;
     this._rate = rate;
     this._voice = voice;
     this._marks = [];
+    this.boundarySeen = false;
     this._speakFrom(this._gen, index);
   }
 
@@ -145,6 +146,9 @@ export class Speaker {
       return;
     }
     const { text, offsets, end } = speechChunk(words, index);
+    // Some voices omit events entirely, or only on certain utterances.
+    // Never let one earlier event disable the fallback for a later chunk.
+    this.boundarySeen = false;
     const u = new SpeechSynthesisUtterance(text);
     u.rate = this._rate;
     if (this._voice) {

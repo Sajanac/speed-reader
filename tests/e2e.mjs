@@ -416,7 +416,7 @@ await step('import .pdf (joins hyphenation, drops page numbers)', async () => {
   assert.equal(await readAll(page), 'The first line of a paragraph continues here. A new paragraph starts. Second page text.');
 });
 
-await step('read aloud: voice drives words, WPM sets rate, pause cancels', async () => {
+await step('read aloud: voice drives words, separate rate controls speech, pause cancels', async () => {
   await loadSample(page);
   await page.evaluate(() => {
     const s = document.getElementById('scrub');
@@ -425,6 +425,9 @@ await step('read aloud: voice drives words, WPM sets rate, pause cancels', async
     const w = document.getElementById('wpm');
     w.value = 450;
     w.dispatchEvent(new Event('input'));
+    const rate = document.getElementById('speech-rate');
+    rate.value = 2.5;
+    rate.dispatchEvent(new Event('input'));
   });
   await page.click('#btn-voice');
   assert.equal(await page.getAttribute('#btn-voice', 'aria-pressed'), 'true');
@@ -433,7 +436,7 @@ await step('read aloud: voice drives words, WPM sets rate, pause cancels', async
   const mid = await state(page);
   const spoken = await page.evaluate(() => window.__spoken);
   assert.equal(spoken[0].text.split(' ')[0], 'Rapid');
-  assert.equal(spoken[0].rate, 2.5); // 450 / 180
+  assert.equal(spoken[0].rate, 2.5);
   assert.equal(spoken[0].voice, 'Ava (Premium)'); // best quality voice by default
   // 450 wpm => 7.5 words/s, so ~9 words in 1.2s.
   assert.ok(mid.scrub >= 6 && mid.scrub <= 12, `index ${mid.scrub}`);
