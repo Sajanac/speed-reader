@@ -131,6 +131,10 @@ async function setRange(page, id, value) {
 }
 
 async function usableControls(page) {
+  if (await page.locator('body.immersive-focus:not(.immersive-controls-visible)').count()) {
+    await page.locator('#immersive-reader').click({ position: { x: 30, y: 180 } });
+  }
+  await page.waitForFunction(() => Number(getComputedStyle(document.querySelector('.controls')).opacity) > .9);
   const state = await page.locator('#btn-play').evaluate((button) => {
     const style = getComputedStyle(button);
     const parent = getComputedStyle(button.closest('.controls'));
@@ -274,7 +278,7 @@ try {
   }
   browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true });
 
-  await step('mode switching shares position; narrated words highlight while controls remain available', async () => {
+  await step('mode switching shares position; narrated words highlight and tap reveals controls', async () => {
     const { context, page, errors } = await newPage();
     try {
       await loadText(page, READING_TEXT);
@@ -306,6 +310,7 @@ try {
       assert.equal(await page.locator('#btn-play').getAttribute('aria-label'), 'Pause');
       assert.ok(await page.locator('#toast').evaluate((toast) => Number(getComputedStyle(toast).opacity) < 0.02), 'Expired notifications stay hidden while reading');
       await page.screenshot({ path: path.join(screenshots, 'desktop-readalong.png'), fullPage: true });
+      await usableControls(page);
       await page.click('#btn-play');
       assert.deepEqual(errors, []);
     } finally { await context.close(); }

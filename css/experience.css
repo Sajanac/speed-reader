@@ -39,6 +39,32 @@ body.reading:is([data-reading-mode='immersive'],[data-reading-mode='listen']) .t
 .selection-toolbar .btn { min-height: 36px; padding: 6px 12px; font-size: 13px; }
 .controls { width: min(100%, 900px); gap: 5px; padding: 12px 26px 14px; }
 body[data-reading-mode='immersive'] .controls { background: var(--bg); }
+/* Controls overlay a stable full-page scroll surface; revealing them never
+   resizes the article or changes its saved word/scroll position. */
+#btn-exit-immersive { display: none; }
+#immersive-help { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+body.immersive-focus { overflow: hidden; }
+body.immersive-focus .stage { position: fixed; inset: 0; padding: 0; display: block; }
+body.immersive-focus #immersive-reader {
+  position: absolute; inset: 0; width: 100%; height: 100%; max-height: none;
+  border: 0; border-radius: 0; background: var(--bg);
+  padding: max(28px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
+}
+body.immersive-focus .topbar { position: fixed; inset: 0 0 auto; z-index: 10; background: var(--bg); padding-top: max(8px, env(safe-area-inset-top)); }
+body.immersive-focus .reading-toolbar { position: fixed; top: calc(64px + env(safe-area-inset-top)); left: 0; right: 0; z-index: 10; padding: 8px 16px; background: var(--bg); }
+body.immersive-focus .controls { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); z-index: 10; max-height: 45dvh; overflow: auto; padding-bottom: max(12px, env(safe-area-inset-bottom)); border-radius: 16px 16px 0 0; box-shadow: 0 -8px 24px #0001; }
+body.immersive-focus .selection-toolbar { position: fixed; top: calc(170px + env(safe-area-inset-top)); left: 0; right: 0; z-index: 11; background: var(--bg); padding: 8px 16px; }
+body.immersive-focus .status { display: none; }
+body.immersive-focus #btn-exit-immersive { display: inline-flex; }
+body.immersive-focus:not(.immersive-controls-visible) :is(.topbar,.reading-toolbar,.controls,.selection-toolbar,.toast) { opacity: 0; visibility: hidden; pointer-events: none; }
+body.immersive-focus:not(.immersive-controls-visible) #toast { opacity: 0; visibility: hidden; }
+body.immersive-focus.immersive-controls-visible :is(.topbar,.reading-toolbar,.controls) { opacity: 1; visibility: visible; pointer-events: auto; }
+@media (max-width: 600px) {
+  body.immersive-focus #immersive-reader { padding-inline: max(22px, env(safe-area-inset-left)) max(22px, env(safe-area-inset-right)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  body.immersive-focus :is(.topbar,.controls) { transition: none; }
+}
 .transport { gap: 20px; }
 .speed { max-width: 470px; width: 100%; align-self: center; }
 .speech-speed .speed-caption { color: var(--muted); font-size: 12px; white-space: nowrap; }

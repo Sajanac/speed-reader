@@ -1,5 +1,5 @@
-import { Player } from './engine.js?v=20261011';
-import { NativeAudioNarrator } from './narration.js?v=20261011';
+import { Player } from './engine.js?v=20261016';
+import { NativeAudioNarrator } from './narration.js?v=20261016';
 
 // One position shared by timed reading, device speech, and prepared audio.
 export class ReadingPlayback {

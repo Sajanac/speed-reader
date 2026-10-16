@@ -1,15 +1,16 @@
-import { splitWord } from './orp.js?v=20261011';
-import { buildDoc, normalize, durationMs, sentenceStart, sentenceEnd } from './text.js?v=20261011';
-import { MIN_WPM, MAX_WPM } from './engine.js?v=20261011';
-import { ReadingPlayback } from './playback.js?v=20261011';
-import { NativeAudioNarrator } from './narration.js?v=20261011';
-import { ImmersiveReader, HIGHLIGHT_COLORS, wordAtOffset } from './immersive.js?v=20261011';
-import { prepareNaturalVoice, serializeAudioPackage, importAudioPackage, exportNarrationAudio, NATURAL_VOICES } from './natural-voice.js?v=20261011';
-import { speechSupported, listVoices, pickVoice, voiceLabel, claimPlaybackAudio, unlockAudio } from './speech.js?v=20261011';
-import { importFile, articleFromHtml } from './importers.js?v=20261011';
-import { bookmarkletHref, appUrl } from './bookmarklet.js?v=20261011';
-import * as store from './store.js?v=20261011';
-import { isLanding, showLanding, showReader } from './landing.js?v=20261011';
+import { splitWord } from './orp.js?v=20261016';
+import { buildDoc, normalize, durationMs, sentenceStart, sentenceEnd } from './text.js?v=20261016';
+import { MIN_WPM, MAX_WPM } from './engine.js?v=20261016';
+import { ReadingPlayback } from './playback.js?v=20261016';
+import { NativeAudioNarrator } from './narration.js?v=20261016';
+import { ImmersiveReader, HIGHLIGHT_COLORS, wordAtOffset } from './immersive.js?v=20261016';
+import { prepareNaturalVoice, serializeAudioPackage, importAudioPackage, exportNarrationAudio, NATURAL_VOICES } from './natural-voice.js?v=20261016';
+import { speechSupported, listVoices, pickVoice, voiceLabel, claimPlaybackAudio, unlockAudio } from './speech.js?v=20261016';
+import { importFile, articleFromHtml } from './importers.js?v=20261016';
+import { bookmarkletHref, appUrl } from './bookmarklet.js?v=20261016';
+import * as store from './store.js?v=20261016';
+import { createImmersiveChrome } from './immersive-chrome.js?v=20261016';
+import { isLanding, showLanding, showReader } from './landing.js?v=20261016';
 
 const $ = (id) => document.getElementById(id);
 const el = {
@@ -54,11 +55,13 @@ let documentEpoch = 0;
 let selectedPassage = null;
 let currentSpan = null;
 let testingDeviceVoice = false;
+let immersiveChrome;
 
 const player = new ReadingPlayback({
   onWord: (i, span) => { currentSpan = span || null; render(i); },
   onState: (playing) => {
     document.body.classList.toggle('reading', playing);
+    immersiveChrome?.sync(prefs.mode, playing);
     updatePlayButton(playing);
     updateContext();
     updateStatus();
@@ -75,6 +78,7 @@ const player = new ReadingPlayback({
   onProgress: () => { if (current && player.usesAudio) { updateLabels(player.index); updateMediaPosition(); } },
 });
 
+immersiveChrome = createImmersiveChrome({ reader: $('immersive-reader'), onExit: () => player.pause() });
 const immersive = new ImmersiveReader({ container: $('immersive-reader'),
   onSeek: (index) => { clearPassage(); player.seek(index); },
   onSelection: (range) => { if (range) { selectedPassage = range; updateSelection(); } },
@@ -384,6 +388,7 @@ $('home-resume').addEventListener('click', () => {
   el.play.focus();
 });
 $('btn-reader-home').addEventListener('click', () => {
+  immersiveChrome.leave();
   player.pause();
   showLanding(current?.meta);
 });
@@ -845,6 +850,7 @@ function applyMode() {
   el.context.hidden = prefs.mode !== 'rsvp';
   $('immersive-reader').hidden = prefs.mode !== 'immersive';
   $('listen-view').hidden = prefs.mode !== 'listen';
+  immersiveChrome.sync(prefs.mode, player.playing);
   $('btn-follow').hidden = prefs.mode !== 'immersive';
   $('rsvp-speed').hidden = prefs.speech;
   $('speech-speed').hidden = !prefs.speech;

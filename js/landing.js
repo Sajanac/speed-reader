@@ -1,5 +1,5 @@
-import { readTheme, saveTheme } from '../brand/theme.js?v=20261011';
-import { mountElasticUnderlines } from '../brand/elastic.js?v=20261011';
+import { readTheme, saveTheme } from '../brand/theme.js?v=20261016';
+import { mountElasticUnderlines } from '../brand/elastic.js?v=20261016';
 
 const body = document.body;
 const themeButton = document.getElementById('home-theme');

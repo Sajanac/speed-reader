@@ -11,10 +11,10 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/landing.css">
-  <link rel="stylesheet" href="css/immersive.css?v=20261011">
-  <link rel="stylesheet" href="css/experience.css?v=20261011">
+  <link rel="stylesheet" href="css/immersive.css?v=20261016">
+  <link rel="stylesheet" href="css/experience.css?v=20261016">
   <link rel="stylesheet" href="brand/brand.css?v=3">
-  <script type="module" src="js/app.js?v=20261011"></script>
+  <script type="module" src="js/app.js?v=20261016"></script>
 </head>
 <body class="on-home" data-accent="teal" data-font="sans">
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -72,12 +72,14 @@
         <button id="mode-listen" data-mode="listen" aria-pressed="false">Listen</button>
       </div>
       <div class="reading-actions">
+        <button class="quiet-btn" id="btn-exit-immersive">Exit read along</button>
         <select id="chapter-select" aria-label="Chapter or page" hidden></select>
         <button class="quiet-btn" id="btn-follow" aria-pressed="true" hidden>Follow text</button>
         <button class="quiet-btn" id="btn-narration"><svg aria-hidden="true"><use href="#i-voice"/></svg>Voice &amp; audio</button>
       </div>
     </div>
-    <div class="immersive-reader" id="immersive-reader" tabindex="0" aria-label="Document text" hidden></div>
+    <div class="immersive-reader" id="immersive-reader" tabindex="0" aria-label="Document text" aria-describedby="immersive-help" hidden></div>
+    <span class="sr-only" id="immersive-help">While reading, tap the text or press Tab to show controls. Space pauses or resumes. Escape pauses and exits the full-page view.</span>
     <div class="selection-toolbar" id="selection-toolbar" hidden aria-label="Selected passage">
       <span id="selection-label"></span>
       <button class="btn primary" id="btn-read-selection">Read selection</button>
@@ -208,7 +210,7 @@
     </section>
     <section>
       <h3>Keyboard</h3>
-      <p class="hint">One-word mode keeps the page quiet while playing; tap to pause. Read-along mode keeps the text and controls available.</p>
+      <p class="hint">One-word mode keeps the page quiet while playing; tap to pause. Read along fills the page with text. Tap the text or press Tab for controls; Space pauses, and Escape exits the full-page view.</p>
       <p class="hint">Space: play/pause · ←/→: back/forward 10 words · ↑/↓: speed</p>
     </section>
   </dialog>
