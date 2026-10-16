@@ -32,6 +32,10 @@ The public site is static, with no build step or paid TTS account. Documents, pr
 
 PDF layouts are extracted heuristically; complex columns/tables and OCR can need correction. EPUB DRM is unsupported. Website imports use the bookmarklet or pasted text instead of a public scraping proxy. See [import behavior and limitations](docs/IMPORTS.md).
 
+## Full-page read along
+
+Starting Read along fills the page with text and hides the interface. Tap the text or press Tab to reveal controls; they fade after three idle seconds while playback continues. Focused controls, pointer interaction, text selection and open dialogs keep them available. Space pauses/resumes; Escape or **Exit read along** pauses and leaves the full-page view. Pausing keeps the full-page text with controls visible. Existing highlighting preferences, word position and saved progress are retained.
+
 ## The Speed Read bookmarklet
 
 The bookmarklet copies the page as you currently see it, so pages you're logged into and paywalled articles you can access both work. It opens the reader in a new tab and hands the page over with `postMessage`. The reader then extracts the article with [Mozilla Readability](https://github.com/mozilla/readability), which takes the same approach as Safari Reader.
@@ -69,6 +73,7 @@ The app uses ES modules, so it has to be served over HTTP. Opening `index.html` 
 npm test                      # unit tests (ORP, tokenizer, timing, bookmarklet syntax)
 npm install && npm run test:e2e   # browser tests (needs a Chromium; set CHROMIUM_PATH)
 npm run test:experience        # immersive, imports, selection, audio, system controls
+npm run test:immersive         # full-page text, tap/idle controls, focus and exit on desktop/mobile
 ```
 
 ## Deploy to GitHub Pages
@@ -77,7 +82,7 @@ Go to Settings › Pages, choose **Deploy from a branch**, and select `main` / `
 
 The reader is served at `reader.sajanacharya.com`. That needs a DNS `CNAME` record for `reader` pointing to `sajanac.github.io`, and `reader.sajanacharya.com` entered as the custom domain under Settings › Pages. GitHub stores the custom domain in a `CNAME` file in the repo.
 
-For a new release, update the `v=20261011` tag consistently in the entry script, local module imports, browser voice worker URL, and changed CSS links, then update `RELEASE` and bump `CACHE` in `sw.js`. GitHub Pages caches assets for ten minutes; versioned module URLs keep an existing browser from mixing old scripts with new markup. The service worker precaches the release URLs and revalidates network responses.
+For a new release, update the `v=20261016` tag consistently in the entry script, local module imports, browser voice worker URL, and changed CSS links, then update `RELEASE` and bump `CACHE` in `sw.js`. GitHub Pages caches assets for ten minutes; versioned module URLs keep an existing browser from mixing old scripts with new markup. The service worker precaches the release URLs and revalidates network responses.
 
 The **← Blog** link in the top bar is set in `index.html` (`.home-link`).
 

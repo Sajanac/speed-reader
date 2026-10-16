@@ -1,10 +1,10 @@
-const CACHE = 'reader-shell-v2';
-const RELEASE = '20261011';
+const CACHE = 'reader-shell-v3';
+const RELEASE = '20261016';
 const SHELL = [ './', 'index.html', 'icon.svg', 'manifest.webmanifest',
   'css/style.css', 'css/landing.css', 'css/experience.css', 'css/immersive.css',
   'js/app.js', 'js/engine.js', 'js/speech.js', 'js/store.js', 'js/text.js',
   'js/orp.js', 'js/importers.js', 'js/bookmarklet.js', 'js/landing.js',
-  'js/playback.js', 'js/narration.js', 'js/natural-voice.js', 'js/immersive.js',
+  'js/playback.js', 'js/narration.js', 'js/natural-voice.js', 'js/immersive.js', 'js/immersive-chrome.js',
   'brand/brand.css', 'brand/theme.js', 'brand/elastic.js', 'brand/nepal-flag.svg',
   'brand/logo-mark.png', 'brand/newsreader-latin-wght-normal.woff2', 'brand/nunito-sans-latin-wght-normal.woff2',
   'vendor/Readability.js', 'vendor/jszip.min.js', 'vendor/pdfjs/pdf.min.js', 'vendor/pdfjs/pdf.worker.min.js',

@@ -1,6 +1,6 @@
 // Text normalisation, tokenising, timing factors, and HTML-to-text extraction.
 
-import { coreLength } from './orp.js?v=20261011';
+import { coreLength } from './orp.js?v=20261016';
 
 // Dwell-time multipliers applied to the base interval (60000 / WPM).
 export const TIMING = {

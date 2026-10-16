@@ -1,0 +1,77 @@
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { chromium } from 'playwright-core';
+import fs from 'node:fs/promises';
+const server = spawn(process.execPath, ['tests/serve.mjs', '.', '8137'], {stdio:'ignore'});
+let browser;
+const evidence = [];
+try {
+  for (let n=0;n<30;n++) { try { if ((await fetch('http://127.0.0.1:8137')).ok) break; } catch {} await new Promise(r=>setTimeout(r,100)); }
+  browser = await chromium.launch({executablePath:process.env.CHROMIUM_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless:true});
+  await fs.mkdir('revision-proof', {recursive:true});
+  for (const [name,viewport,isMobile] of [['desktop',{width:1280,height:900},false],['mobile',{width:390,height:844},true],['landscape',{width:844,height:390},true]]) {
+    const context = await browser.newContext({viewport,isMobile,hasTouch:isMobile});
+    const page = await context.newPage(), errors=[];
+    page.on('pageerror',e=>errors.push(e.message));
+    await page.goto('http://127.0.0.1:8137');
+    await page.locator('[data-reader-action="btn-import"]:visible').first().click();
+    const paragraph='A quiet place to read. The article stays in view as the highlighted words move through each sentence. You can scroll freely and return to following whenever you choose. Reading should feel comfortable on a phone as well as a larger screen.';
+    await page.fill('#paste-text',Array(18).fill(paragraph).join('\n\n'));
+    await page.click('#btn-read-paste');
+    await page.click('#mode-immersive');
+    await page.locator('#wpm').evaluate(el=>{el.value=100;el.dispatchEvent(new Event('input',{bubbles:true}));});
+    if(await page.locator('#btn-voice').getAttribute('aria-pressed')==='true') await page.click('#btn-voice');
+    await page.click('#btn-play');
+    await page.waitForSelector('body.immersive-focus:not(.immersive-controls-visible)');
+    await page.waitForTimeout(350);
+    const rect=await page.locator('#immersive-reader').boundingBox();
+    assert.equal(rect.width,viewport.width); assert.equal(rect.height,viewport.height); assert.equal(rect.x,0); assert.equal(rect.y,0);
+    assert.equal(await page.locator('#immersive-reader').getAttribute('data-highlight-style'),'half');
+    assert.equal(await page.locator('.controls').evaluate(el=>el.inert),true);
+    assert.equal(await page.locator('.topbar').isVisible(),false);
+    assert.equal(await page.locator('#toast').isVisible(),false,'Quiet view contains no notifications');
+    await page.screenshot({path:`revision-proof/${name}-clean.png`});
+    const before=Number(await page.locator('#scrub').inputValue());
+    await page.locator('#immersive-reader').click({position:{x:viewport.width/2,y:viewport.height/2}});
+    assert.ok(Number(await page.locator('#scrub').inputValue())<=before+2,'First tap reveals without seeking');
+    await page.waitForSelector('body.immersive-controls-visible');
+    await page.waitForTimeout(350);
+    await page.screenshot({path:`revision-proof/${name}-controls.png`});
+    // Move away from controls so pointer hover cannot pin the overlay.
+    await page.mouse.move(viewport.width/2,viewport.height/2);
+    await page.waitForSelector('body:not(.immersive-controls-visible)',{timeout:5000});
+    await page.keyboard.press('Tab');
+    await page.waitForSelector('body.immersive-controls-visible');
+    await page.locator('#btn-play').waitFor({state:'visible'});
+    await page.locator('#btn-play').focus();
+    assert.equal(await page.evaluate(()=>document.activeElement.id),'btn-play','Keyboard target receives focus');
+    await page.waitForTimeout(3300);
+    assert.equal(await page.locator('.controls').evaluate(el=>el.inert),false,'Focused controls never disappear');
+    await page.keyboard.press('Space');
+    assert.equal(await page.locator('#btn-play').getAttribute('aria-label'),'Play');
+    assert.equal(await page.locator('body').evaluate(el=>el.classList.contains('immersive-focus')),true,'Pause keeps full-page text');
+    const index=Number(await page.locator('#scrub').inputValue());
+    await page.locator('#immersive-reader').evaluate(el=>el.scrollTop=600);
+    await page.waitForTimeout(100);
+    const scroll=await page.locator('#immersive-reader').evaluate(el=>el.scrollTop);
+    assert.ok(scroll>500);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('body').evaluate(el=>el.classList.contains('immersive-focus')),false);
+    assert.equal(Number(await page.locator('#scrub').inputValue()),index,'Exit preserves index');
+    await page.click('#btn-play');
+    await page.locator('#immersive-reader').click({position:{x:viewport.width/2,y:viewport.height/2}});
+    const exit=await page.locator('#btn-exit-immersive').boundingBox();
+    assert.ok(exit && exit.y>=0 && exit.y+exit.height<=viewport.height,'Exit stays reachable');
+    await page.click('#btn-exit-immersive');
+    assert.equal(await page.locator('#btn-play').getAttribute('aria-label'),'Play');
+    assert.equal(await page.locator('body').evaluate(el=>el.classList.contains('immersive-focus')),false);
+    await page.click('#btn-reader-home');
+    await page.click('#home-resume');
+    assert.equal(Number(await page.locator('#scrub').inputValue())>=index,true,'Home/resume preserves position');
+    assert.deepEqual(errors,[]);
+    evidence.push({name,viewport,fullPage:rect,halfHighlight:true,firstTapDoesNotSeek:true,idleHides:true,focusPins:true,pauseExitPreserveIndex:true,scrollWorks:true,errors});
+    await context.close();
+    console.log(`PASS ${name}`);
+  }
+  await fs.writeFile('revision-proof/results.json',JSON.stringify(evidence,null,2));
+} finally { await browser?.close(); server.kill(); }
